@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================
+   Apple Finance Color System
+   ========================= */
+
+:root {
+  /* Typography */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'SF Pro Display', 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial,
+    'Apple Color Emoji', 'Segoe UI Emoji';
+
+  /* Base surfaces */
+  --bg: 0 0% 98%;
+  --panel: 0 0% 100%;
+  --panelTint: 220 14% 96%;
+  --border: 220 13% 91%;
+  --text: 222 22% 11%;
+  --muted: 215 16% 47%;
+
+  /* Accents (Apple Finance) */
+  --accent: 221 83% 53%; /* blue */
+  --positive: 160 84% 39%; /* emerald */
+  --negative: 346 84% 58%; /* rose */
+
+  /* Shadows */
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  --shadowDark: 0 12px 38px rgba(0, 0, 0, 0.55);
+}
+
+.dark {
+  /* Match Income page dark surfaces (slate-900 / slate-800 feel) */
+  --bg: 222 47% 6%; /* close to slate-950 */
+  --panel: 222 47% 11%; /* slate-900 */
+  --panelTint: 222 47% 14%;
+  --border: 215 28% 17%; /* close to slate-800 */
+  --text: 210 40% 98%;
+  --muted: 215 20% 65%;
+
+  /* accents stay the same */
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+  background: hsl(var(--bg));
+}
+
+body {
+  color: hsl(var(--text));
+}
+
+::selection {
+  background: rgba(59, 130, 246, 0.25);
+}
+
+/* =========================
+   UI Primitives
+   ========================= */
+@layer components {
+  .apple-card {
+    @apply rounded-2xl border backdrop-blur;
+    border-color: hsl(var(--border) / 0.75);
+    background: hsl(var(--panel) / 1);
+    box-shadow: var(--shadow);
+  }
+
+  /* CRITICAL FIX: no translucent white overlay in dark mode */
+  .dark .apple-card {
+    border-color: hsl(var(--border) / 1);
+    background: hsl(var(--panel) / 1);
+    box-shadow: var(--shadowDark);
+  }
+
+  .apple-label {
+    @apply text-xs font-medium;
+    color: hsl(var(--muted));
+  }
+
+  .apple-value {
+    @apply text-2xl font-semibold tracking-tight;
+    color: hsl(var(--text));
+  }
+
+  .apple-subvalue {
+    @apply text-xs;
+    color: hsl(var(--muted));
+  }
+
+  .apple-button {
+    @apply rounded-xl border px-3 py-2 text-sm font-medium transition;
+    border-color: hsl(var(--border) / 0.8);
+    background: hsl(var(--panel) / 1);
+    color: hsl(var(--text));
+  }
+  .apple-button:hover {
+    background: hsl(var(--panelTint) / 0.7);
+  }
+  .dark .apple-button {
+    border-color: hsl(var(--border) / 1);
+    background: hsl(var(--panel) / 1);
+  }
+  .dark .apple-button:hover {
+    background: hsl(var(--panelTint) / 1);
+  }
+
+  /* Segmented control (Apple-style) */
+  .seg {
+    @apply inline-flex rounded-xl border p-1 backdrop-blur;
+    border-color: hsl(var(--border) / 0.75);
+    background: hsl(var(--panel) / 1);
+  }
+  .dark .seg {
+    border-color: hsl(var(--border) / 1);
+    background: hsl(var(--panel) / 1);
+  }
+
+  .seg-btn {
+    @apply rounded-lg px-3 py-2 text-sm font-medium transition;
+    color: hsl(var(--muted));
+  }
+  .seg-btn:hover {
+    background: hsl(var(--panelTint));
+    color: hsl(var(--text));
+  }
+  .seg-btn-on {
+    background: hsl(var(--accent) / 0.14);
+    color: hsl(var(--text));
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+  }
+  .dark .seg-btn-on {
+    background: hsl(var(--accent) / 0.22);
+  }
+
+  /* Meaningful KPI tints (subtle) */
+  .kpi-neutral {
+    @apply apple-card;
+  }
+
+  .kpi-positive {
+    @apply apple-card;
+    background: radial-gradient(
+        1200px 400px at 20% -10%,
+        hsl(var(--positive) / 0.18),
+        transparent 55%
+      ),
+      hsl(var(--panel) / 1);
+  }
+
+  .kpi-negative {
+    @apply apple-card;
+    background: radial-gradient(
+        1200px 400px at 20% -10%,
+        hsl(var(--negative) / 0.18),
+        transparent 55%
+      ),
+      hsl(var(--panel) / 1);
+  }
+
+  .kpi-accent {
+    @apply apple-card;
+    background: radial-gradient(
+        1200px 400px at 20% -10%,
+        hsl(var(--accent) / 0.18),
+        transparent 55%
+      ),
+      hsl(var(--panel) / 1);
+  }
+
+  /* Accent text helpers (for chart currentColor) */
+  .accent {
+    color: hsl(var(--accent));
+  }
+  .positive {
+    color: hsl(var(--positive));
+  }
+  .negative {
+    color: hsl(var(--negative));
+  }
+} /* <-- THIS closing brace was missing */
