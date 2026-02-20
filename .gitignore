@@ -1,11 +1,11 @@
-node_module# dependencies
+# dependencies
 node_modules
 
-# next build output
+# Next.js
 .next
 out
 
-# env
+# env (never commit)
 .env
 .env.local
 .env.*.local
