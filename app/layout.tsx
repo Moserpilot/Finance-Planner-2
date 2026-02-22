@@ -83,11 +83,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   active={pathname.startsWith('/expenses')}
                 />
                 <NavLink
-                  href="/milestones"
-                  label="Milestones"
-                  active={pathname.startsWith('/milestones')}
-                />
-                <NavLink
                   href="/assumptions"
                   label="Assumptions"
                   active={pathname.startsWith('/assumptions')}

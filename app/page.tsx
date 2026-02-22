@@ -1,4 +1,4 @@
-﻿'use client';
+﻿'use client'; 
 
 import { useEffect, useMemo, useState } from 'react';
 import type { Plan } from './lib/store';
@@ -340,15 +340,8 @@ export default function DashboardPage() {
           </div>
 
           <div className="mt-3 px-2">
-            <NetWorthChart
-              currency={cur}
-              startMonthISO={startISO}
-              planSeries={windowedPlan as any}
-              actualSeries={showActual ? (windowedActual as any) : undefined}
-              bands={showRisk ? (windowedBands as any) : undefined}
-              heightPx={660}
-              fixedWidthPx={1080}
-            />
+            <div className="p-6 text-sm text-slate-500 dark:text-slate-400">Chart temporarily disabled for hook test.</div>
+        
           </div>
         </div>
       </div>

@@ -1,98 +1,74 @@
-// app/components/AllocationPie.tsx
 'use client';
 
-import React from 'react';
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  Legend,
-} from 'recharts';
+import React, { useMemo } from 'react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
-export type AllocationSlice = {
-  label: string;
-  value: number; // absolute dollars (can be negative but we’ll typically send assets)
-};
+type Slice = { name: string; value: number };
 
-function fmtMoney(n: number, currency: string) {
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 0,
-    }).format(Number.isFinite(n) ? n : 0);
-  } catch {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0,
-    }).format(Number.isFinite(n) ? n : 0);
-  }
+function pct(a: number, total: number) {
+  if (!total) return '0.0%';
+  return `${((a / total) * 100).toFixed(1)}%`;
 }
 
-const COLORS = [
-  '#3b82f6', // blue
-  '#22c55e', // green
-  '#a855f7', // purple
-  '#f59e0b', // amber
-  '#ef4444', // red
-  '#06b6d4', // cyan
-  '#64748b', // slate
-];
-
 export function AllocationPie({
+  title = 'Allocation by type',
   data,
-  currency,
-  height = 220,
+  heightPx = 260,
 }: {
-  data: AllocationSlice[];
-  currency: string;
-  height?: number;
+  title?: string;
+  data: Slice[];
+  heightPx?: number;
 }) {
-  const cleaned = (data || [])
-    .map((d) => ({ ...d, value: Number.isFinite(d.value) ? d.value : 0 }))
-    .filter((d) => d.value > 0);
+  const total = useMemo(() => (data || []).reduce((s, x) => s + (Number.isFinite(x.value) ? x.value : 0), 0), [data]);
 
-  const total = cleaned.reduce((s, d) => s + d.value, 0);
-
-  if (!cleaned.length || total <= 0) {
+  const tooltip = ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+    const { name, value } = payload[0].payload || {};
     return (
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/30 dark:text-slate-300">
-        No allocation data yet.
+      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{name}</div>
+        <div className="mt-0.5 text-base font-semibold text-slate-900 dark:text-slate-100">{pct(value, total)}</div>
       </div>
     );
-  }
+  };
 
   return (
-    <div style={{ width: '100%', height }}>
-      <ResponsiveContainer>
-        <PieChart>
-          <Pie
-            data={cleaned}
-            dataKey="value"
-            nameKey="label"
-            innerRadius="55%"
-            outerRadius="85%"
-            paddingAngle={2}
-            isAnimationActive={false}
-          >
-            {cleaned.map((_, i) => (
-              <Cell key={i} fill={COLORS[i % COLORS.length]} />
-            ))}
-          </Pie>
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</div>
 
-          <Tooltip
-            formatter={(value: any, name: any) => {
-              const v = Number(value) || 0;
-              const pct = total > 0 ? (v / total) * 100 : 0;
-              return [`${fmtMoney(v, currency)} (${pct.toFixed(1)}%)`, String(name)];
-            }}
-          />
-          <Legend verticalAlign="bottom" height={28} />
-        </PieChart>
-      </ResponsiveContainer>
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <div style={{ height: heightPx }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Tooltip content={tooltip} />
+              <Pie
+                data={data}
+                dataKey="value"
+                nameKey="name"
+                innerRadius="55%"
+                outerRadius="85%"
+                paddingAngle={2}
+                labelLine={false}
+                label={false}   // ✅ kill cartoony slice labels
+              >
+                {(data || []).map((_, i) => (
+                  <Cell key={i} />
+                ))}
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="space-y-2">
+          {(data || []).map((s) => (
+            <div key={s.name} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2 dark:border-slate-800">
+              <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{s.name}</div>
+              <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">{pct(s.value, total)}</div>
+            </div>
+          ))}
+          <div className="text-xs text-slate-500 dark:text-slate-400">Total: {total.toLocaleString()}</div>
+        </div>
+      </div>
     </div>
   );
 }
