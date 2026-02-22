@@ -4,19 +4,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Plan } from './lib/store';
 import { loadPlan, savePlan } from './lib/store';
-import {
-  amountForMonth,
-  buildCashFlowSeries,
-  buildNetWorthBands,
-  buildNetWorthSeries,
-} from './lib/engine';
+import { buildNetWorthSeries, netWorthAsOf } from './lib/engine';
 import { NetWorthChart } from './components/NetWorthChart';
+import { AllocationPie } from './components/AllocationPie';
 
 function safeCurrency(code: string) {
   const c = (code || '').trim().toUpperCase();
   if (!/^[A-Z]{3}$/.test(c)) return 'USD';
   try {
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: c }).format(0);
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: c }).format(
+      0
+    );
     return c;
   } catch {
     return 'USD';
@@ -45,70 +43,106 @@ function addMonthsISO(startISO: string, add: number) {
   return `${y}-${String(m + 1).padStart(2, '0')}`;
 }
 
-/**
- * Some users end up with malformed netWorthAccounts balances due to older code:
- * - balances might be an object, null, or something non-iterable
- * - amount key might be "amount", "balance", or "value"
- * We sanitize for engine safety and compute KPI directly from stored balances.
- */
-function sanitizePlanForEngine(p: Plan): Plan {
-  const accounts = Array.isArray((p as any).netWorthAccounts) ? (p as any).netWorthAccounts : [];
-  const cleaned = accounts.map((a: any) => {
-    const balancesRaw = a?.balances;
-    const balances = Array.isArray(balancesRaw) ? balancesRaw : []; // engine assumes iterable
-    return { ...a, balances };
-  });
-  return { ...p, netWorthAccounts: cleaned } as Plan;
+function monthFromEntry(entry: any): string | null {
+  const raw =
+    entry?.monthISO ?? entry?.month ?? entry?.asOfMonth ?? entry?.date;
+  const s = String(raw ?? '').trim();
+  return /^\d{4}-\d{2}$/.test(s) ? s : null;
 }
 
-function getLatestNetWorthFromAccounts(p: Plan | null): { monthISO: string | null; netWorth: number } {
-  if (!p) return { monthISO: null, netWorth: 0 };
+function amountFromEntry(entry: any): number {
+  const candidates = [entry?.amount, entry?.balance, entry?.value];
+  for (const candidate of candidates) {
+    const n = Number(candidate);
+    if (Number.isFinite(n)) return n;
+  }
+  return 0;
+}
 
-  const accounts = Array.isArray((p as any).netWorthAccounts) ? (p as any).netWorthAccounts : [];
+function latestNetWorthFromAccounts(plan: Plan): {
+  netWorth: number;
+  monthISO: string | null;
+} {
+  const rows: { monthISO: string; amount: number }[] = [];
 
-  // gather month list safely
-  const months: string[] = [];
+  const accounts = Array.isArray(plan?.netWorthAccounts)
+    ? plan.netWorthAccounts
+    : [];
   for (const acct of accounts) {
-    const bs = acct?.balances;
-    if (!Array.isArray(bs)) continue;
-    for (const b of bs) {
-      const m = b?.monthISO;
-      if (typeof m === 'string' && /^\d{4}-\d{2}$/.test(m)) months.push(m);
+    const balances = Array.isArray((acct as any)?.balances)
+      ? (acct as any).balances
+      : [];
+    for (const b of balances) {
+      const monthISO = monthFromEntry(b);
+      if (!monthISO) continue;
+      rows.push({ monthISO, amount: amountFromEntry(b) });
     }
   }
-  const uniq = Array.from(new Set(months)).sort(); // lex sort works for YYYY-MM
-  const latest = uniq.length ? uniq[uniq.length - 1] : null;
 
-  if (!latest) return { monthISO: null, netWorth: 0 };
+  if (!rows.length) return { netWorth: 0, monthISO: null };
 
-  // sum balances for latest month with flexible key names
-  let total = 0;
+  const latestMonth = rows.reduce(
+    (max, row) => (row.monthISO > max ? row.monthISO : max),
+    rows[0].monthISO
+  );
+  const total = rows
+    .filter((r) => r.monthISO === latestMonth)
+    .reduce((sum, r) => sum + r.amount, 0);
+  return { netWorth: total, monthISO: latestMonth };
+}
+
+function allocationFromLatestMonth(plan: Plan) {
+  const palette = {
+    Cash: '#0f172a',
+    Investments: '#2563eb',
+    Retirement: '#7c3aed',
+    RealEstate: '#0d9488',
+    Other: '#64748b',
+  };
+
+  const buckets = {
+    Cash: 0,
+    Investments: 0,
+    Retirement: 0,
+    RealEstate: 0,
+    Other: 0,
+  };
+
+  const latest = latestNetWorthFromAccounts(plan).monthISO;
+  if (!latest) return [];
+
+  const accounts = Array.isArray(plan?.netWorthAccounts)
+    ? plan.netWorthAccounts
+    : [];
   for (const acct of accounts) {
-    const bs = acct?.balances;
-    if (!Array.isArray(bs)) continue;
+    const name = String((acct as any)?.name ?? '').toLowerCase();
+    const balances = Array.isArray((acct as any)?.balances)
+      ? (acct as any).balances
+      : [];
+    const monthRows = balances.filter((b: any) => monthFromEntry(b) === latest);
+    const amt = monthRows.reduce(
+      (sum: number, b: any) => sum + amountFromEntry(b),
+      0
+    );
 
-    const found = bs.find((x: any) => x && x.monthISO === latest);
-    if (!found) continue;
-
-    const raw =
-      typeof found.amount === 'number'
-        ? found.amount
-        : typeof found.balance === 'number'
-        ? found.balance
-        : typeof found.value === 'number'
-        ? found.value
-        : typeof found.amount === 'string'
-        ? Number(String(found.amount).replace(/[$, ]/g, ''))
-        : typeof found.balance === 'string'
-        ? Number(String(found.balance).replace(/[$, ]/g, ''))
-        : typeof found.value === 'string'
-        ? Number(String(found.value).replace(/[$, ]/g, ''))
-        : 0;
-
-    total += Number.isFinite(raw) ? raw : 0;
+    if (/cash|check|saving|money market|mmkt|wallet/.test(name))
+      buckets.Cash += amt;
+    else if (/ira|401k|retire|pension|hsa/.test(name))
+      buckets.Retirement += amt;
+    else if (/real estate|property|home|house|rental|reit/.test(name))
+      buckets.RealEstate += amt;
+    else if (/broker|stock|invest|crypto|etf|fund/.test(name))
+      buckets.Investments += amt;
+    else buckets.Other += amt;
   }
 
-  return { monthISO: latest, netWorth: Number.isFinite(total) ? total : 0 };
+  return (Object.keys(buckets) as Array<keyof typeof buckets>)
+    .map((k) => ({
+      label: k === 'RealEstate' ? 'Real Estate' : k,
+      value: buckets[k],
+      color: palette[k],
+    }))
+    .filter((s) => Math.abs(s.value) > 0.0001);
 }
 
 function ProgressRing({ pct }: { pct: number }) {
@@ -119,7 +153,15 @@ function ProgressRing({ pct }: { pct: number }) {
 
   return (
     <svg width="56" height="56" viewBox="0 0 56 56" aria-label="Goal progress">
-      <circle cx="28" cy="28" r={r} fill="none" stroke="currentColor" opacity="0.12" strokeWidth="6" />
+      <circle
+        cx="28"
+        cy="28"
+        r={r}
+        fill="none"
+        stroke="currentColor"
+        opacity="0.12"
+        strokeWidth="6"
+      />
       <circle
         cx="28"
         cy="28"
@@ -158,44 +200,18 @@ function Kpi({
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</div>
-      <div className={`mt-2 text-2xl font-semibold tracking-tight ${toneText}`}>{value}</div>
-      {sub ? <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{sub}</div> : null}
+      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+        {label}
+      </div>
+      <div className={`mt-2 text-2xl font-semibold tracking-tight ${toneText}`}>
+        {value}
+      </div>
+      {sub ? (
+        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          {sub}
+        </div>
+      ) : null}
     </div>
-  );
-}
-
-function Toggle({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className={
-        'inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition ' +
-        (checked
-          ? 'border-slate-200 bg-slate-900 text-white dark:border-slate-700 dark:bg-white dark:text-slate-900'
-          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5')
-      }
-      aria-pressed={checked}
-    >
-      <span
-        className={
-          'h-4 w-4 rounded-md border ' +
-          (checked
-            ? 'border-white/40 bg-white/10 dark:border-slate-900/20 dark:bg-slate-900/10'
-            : 'border-slate-300 bg-transparent dark:border-slate-700')
-        }
-      />
-      {label}
-    </button>
   );
 }
 
@@ -203,8 +219,6 @@ export default function DashboardPage() {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [windowMonths, setWindowMonths] = useState(12);
   const [offset, setOffset] = useState(0);
-  const [showActual, setShowActual] = useState(true);
-  const [showRisk, setShowRisk] = useState(false);
 
   useEffect(() => {
     setPlan(loadPlan());
@@ -214,180 +228,166 @@ export default function DashboardPage() {
     if (plan) savePlan(plan);
   }, [plan]);
 
-  const cur = useMemo(() => safeCurrency(plan?.currency || 'USD'), [plan?.currency]);
+  const cur = useMemo(
+    () => safeCurrency(plan?.currency || 'USD'),
+    [plan?.currency]
+  );
 
-  // Sanitize before feeding to engine (prevents crashes from malformed balances)
-  const enginePlan = useMemo(() => (plan ? sanitizePlanForEngine(plan) : null), [plan]);
-
-  const planSeriesFull = useMemo(() => {
-    if (!enginePlan) return [];
-    return buildNetWorthSeries(enginePlan);
-  }, [enginePlan]);
-
-  const actualSeriesFull = useMemo(() => {
-    if (!enginePlan || !showActual) return [];
-    return buildNetWorthSeries({ ...enginePlan, netWorthMode: 'snapshot' } as any);
-  }, [enginePlan, showActual]);
-
-  const bandsFull = useMemo(() => {
-    if (!enginePlan || !showRisk) return null;
-    if ((enginePlan as any).netWorthMode === 'snapshot') return null;
-    return buildNetWorthBands(enginePlan, 12 * 30, 750);
-  }, [enginePlan, showRisk]);
+  const series = useMemo(() => {
+    if (!plan) return [];
+    return buildNetWorthSeries(plan);
+  }, [plan]);
 
   const totals = useMemo(() => {
     if (!plan) return { inc: 0, exp: 0, net: 0 };
-    const m = plan.startMonthISO || '2026-01';
-    const inc = (Array.isArray(plan.income) ? plan.income : []).reduce((s, it) => s + amountForMonth(it, m), 0);
-    const exp = (Array.isArray(plan.expenses) ? plan.expenses : []).reduce((s, it) => s + amountForMonth(it, m), 0);
+    const inc = (Array.isArray(plan.income) ? plan.income : []).reduce(
+      (s, i) => s + (Number.isFinite(i.defaultAmount) ? i.defaultAmount : 0),
+      0
+    );
+    const exp = (Array.isArray(plan.expenses) ? plan.expenses : []).reduce(
+      (s, e) => s + (Number.isFinite(e.defaultAmount) ? e.defaultAmount : 0),
+      0
+    );
     return { inc, exp, net: inc - exp };
   }, [plan]);
 
   const maxIdx = useMemo(
-    () => (planSeriesFull.length ? planSeriesFull[planSeriesFull.length - 1].monthIndex : 0),
-    [planSeriesFull]
+    () => (series.length ? series[series.length - 1].monthIndex : 0),
+    [series]
   );
-  const maxOffset = useMemo(() => Math.max(0, maxIdx - windowMonths), [maxIdx, windowMonths]);
-  const effOffset = useMemo(() => Math.min(offset, maxOffset), [offset, maxOffset]);
+  const maxOffset = useMemo(
+    () => Math.max(0, maxIdx - windowMonths),
+    [maxIdx, windowMonths]
+  );
+  const effOffset = useMemo(
+    () => Math.min(offset, maxOffset),
+    [offset, maxOffset]
+  );
 
   useEffect(() => {
     if (offset > maxOffset) setOffset(maxOffset);
   }, [maxOffset]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const startMonth = plan?.startMonthISO || '2026-01';
+  const startISO = useMemo(() => {
+    const base = plan?.startMonthISO || '2026-01';
+    return addMonthsISO(base, effOffset);
+  }, [plan?.startMonthISO, effOffset]);
 
-  const startISO = useMemo(() => addMonthsISO(startMonth, effOffset), [startMonth, effOffset]);
-
-  const windowedPlan = useMemo(() => {
-    if (!planSeriesFull.length) return [];
-    return planSeriesFull
-      .filter((p) => p.monthIndex >= effOffset && p.monthIndex <= effOffset + windowMonths)
+  const windowed = useMemo(() => {
+    if (!series.length) return [];
+    return series
+      .filter(
+        (p) =>
+          p.monthIndex >= effOffset && p.monthIndex <= effOffset + windowMonths
+      )
       .map((p) => ({ ...p, monthIndex: p.monthIndex - effOffset }));
-  }, [planSeriesFull, effOffset, windowMonths]);
-
-  const windowedActual = useMemo(() => {
-    if (!actualSeriesFull.length) return [];
-    return actualSeriesFull
-      .filter((p) => p.monthIndex >= effOffset && p.monthIndex <= effOffset + windowMonths)
-      .map((p) => ({ ...p, monthIndex: p.monthIndex - effOffset }));
-  }, [actualSeriesFull, effOffset, windowMonths]);
-
-  const windowedBands = useMemo(() => {
-    if (!bandsFull) return undefined;
-    return bandsFull
-      .filter((b) => b.monthIndex >= effOffset && b.monthIndex <= effOffset + windowMonths)
-      .map((b) => ({ ...b, monthIndex: b.monthIndex - effOffset }));
-  }, [bandsFull, effOffset, windowMonths]);
-
-  // KPI Net Worth mirrors the Net Worth page: latest stored balances across accounts
-  const latestStoredNW = useMemo(() => getLatestNetWorthFromAccounts(plan), [plan]);
-  const netWorthKpi = latestStoredNW.netWorth;
-  const asOfLabel = latestStoredNW.monthISO ?? '-';
-
-  const insights = useMemo(() => {
-    if (!plan) return { savingsRate: 0, surplus12: 0, runwayMonths: 0 };
-    const cf = buildCashFlowSeries(plan, 12);
-    const income12 = cf.slice(0, 12).reduce((s, x) => s + x.income, 0);
-    const exp12 = cf.slice(0, 12).reduce((s, x) => s + x.expenses, 0);
-    const net12 = income12 - exp12;
-    const savingsRate = income12 > 0 ? net12 / income12 : 0;
-    const avgSurplus = net12 / 12;
-
-    // runway only meaningful if avg surplus negative
-    const runwayMonths = avgSurplus < 0 ? Math.max(0, netWorthKpi / Math.abs(avgSurplus)) : 0;
-    return { savingsRate, surplus12: avgSurplus, runwayMonths };
-  }, [plan, netWorthKpi]);
-
-  // variance computed without hooks (prevents hook-order crashes)
-  let variance: number | null = null;
-  if (showActual && planSeriesFull.length && latestStoredNW.monthISO) {
-    const base = startMonth;
-    const startY = Number(base.slice(0, 4));
-    const startM = Number(base.slice(5, 7)) - 1;
-
-    const y = Number(latestStoredNW.monthISO.slice(0, 4));
-    const m = Number(latestStoredNW.monthISO.slice(5, 7)) - 1;
-    const idx = y * 12 + m - (startY * 12 + startM);
-
-    const planPt = planSeriesFull.find((p) => p.monthIndex === idx);
-    if (planPt) {
-      variance = latestStoredNW.netWorth - planPt.netWorth;
-    }
-  }
+  }, [series, effOffset, windowMonths]);
 
   if (!plan) {
-    return <div className="text-sm text-slate-500 dark:text-slate-400">Loading...</div>;
+    return (
+      <div className="text-sm text-slate-500 dark:text-slate-400">Loading…</div>
+    );
   }
 
-  const netTone: 'positive' | 'negative' = totals.net >= 0 ? 'positive' : 'negative';
+  const netTone: 'positive' | 'negative' =
+    totals.net >= 0 ? 'positive' : 'negative';
 
   const modeLabel =
-    (plan as any).netWorthMode === 'snapshot'
+    plan.netWorthMode === 'snapshot'
       ? 'Track actual balances'
-      : (plan as any).netWorthMode === 'projection'
+      : plan.netWorthMode === 'projection'
       ? 'Hypothetical projection'
       : 'Reality-anchored projection';
 
-  const netWorthSub = `Mode: ${modeLabel} | As of: ${asOfLabel}`;
+  const startMonth = plan.startMonthISO || '2026-01';
+  const latestActual = latestNetWorthFromAccounts(plan);
+  const projectionBaseline = netWorthAsOf(plan, startMonth);
 
-  const projectedNW = planSeriesFull.length ? planSeriesFull[planSeriesFull.length - 1].netWorth : netWorthKpi;
+  const netWorthKpi =
+    plan.netWorthMode === 'projection'
+      ? projectionBaseline?.netWorth ?? 0
+      : latestActual.netWorth;
 
-  const goal = Math.max(0, Number(plan.goalNetWorth ?? 0));
+  const netWorthSub =
+    plan.netWorthMode === 'projection'
+      ? `Mode: ${modeLabel} · Baseline: ${startMonth}`
+      : `Mode: ${modeLabel} · As of: ${latestActual.monthISO ?? '—'}`;
+
+  const projectedNW = series.length
+    ? series[series.length - 1].netWorth
+    : netWorthKpi;
+  const goal = Math.max(0, plan.goalNetWorth ?? 0);
   const curPct = goal > 0 ? clamp01(netWorthKpi / goal) : 0;
   const projPct = goal > 0 ? clamp01(projectedNW / goal) : 0;
 
+  const allocation = allocationFromLatestMonth(plan);
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-      <div className="space-y-6">
-        <div>
-          <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Dashboard</div>
-          <div className="text-sm text-slate-500 dark:text-slate-400">Local-only cash flow + net worth projection</div>
+    <div className="space-y-6">
+      <div>
+        <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+          Dashboard
         </div>
+        <div className="text-sm text-slate-500 dark:text-slate-400">
+          Local-only cash flow + net worth projection
+        </div>
+      </div>
 
-        <div className="grid gap-4 md:grid-cols-5">
-          <Kpi label="Net Worth" value={money(netWorthKpi, cur)} tone="neutral" sub={netWorthSub} />
-          <Kpi label="Monthly Income" value={money(totals.inc, cur)} tone="positive" />
-          <Kpi label="Monthly Expenses" value={money(totals.exp, cur)} tone="negative" />
-          <Kpi label="Net Cash Flow" value={money(totals.net, cur)} tone={netTone} />
+      <div className="grid gap-4 md:grid-cols-5">
+        <Kpi
+          label="Net Worth (investments)"
+          value={money(netWorthKpi, cur)}
+          tone="neutral"
+          sub={netWorthSub}
+        />
+        <Kpi label="Monthly Income" value={money(totals.inc, cur)} tone="positive" />
+        <Kpi
+          label="Monthly Expenses"
+          value={money(totals.exp, cur)}
+          tone="negative"
+        />
+        <Kpi label="Net Cash Flow" value={money(totals.net, cur)} tone={netTone} />
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Goal Progress</div>
-                <div className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100">{(curPct * 100).toFixed(1)}%</div>
-                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  {money(netWorthKpi, cur)} / {money(goal, cur)}
-                </div>
-                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  Projected:{' '}
-                  <span className="font-medium text-slate-900 dark:text-slate-100">{(projPct * 100).toFixed(1)}%</span>
-                </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                Goal Progress
               </div>
-              <div className="text-blue-600 dark:text-blue-400">
-                <ProgressRing pct={curPct} />
+              <div className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100">
+                {(curPct * 100).toFixed(1)}%
               </div>
+              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                {money(netWorthKpi, cur)} / {money(goal, cur)}
+              </div>
+              <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Projected:{' '}
+                <span className="font-medium text-slate-900 dark:text-slate-100">
+                  {(projPct * 100).toFixed(1)}%
+                </span>
+              </div>
+            </div>
+
+            <div className="text-blue-600 dark:text-blue-400">
+              <ProgressRing pct={curPct} />
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="grid gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div className="px-2 pt-1">
-              <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Net Worth</div>
+              <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                Net Worth Projection
+              </div>
               <div className="text-xs text-slate-500 dark:text-slate-400">
-                Window {windowMonths}m | Start {startISO}
-                {variance != null ? (
-                  <span className="ml-2 rounded-lg bg-slate-900/5 px-2 py-0.5 text-xs text-slate-700 dark:bg-white/10 dark:text-slate-200">
-                    Actual vs Plan: {variance >= 0 ? '+' : ''}
-                    {money(variance, cur)}
-                  </span>
-                ) : null}
+                Window {windowMonths}m · Start {startISO}
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 px-2">
-              <Toggle checked={showActual} onChange={setShowActual} label="Show actual" />
-              <Toggle checked={showRisk} onChange={setShowRisk} label="Risk bands" />
+            <div className="px-2">
               <div className="inline-flex rounded-xl border border-slate-200 p-1 dark:border-slate-800">
                 {[6, 12, 24, 60].map((m) => (
                   <button
@@ -422,50 +422,18 @@ export default function DashboardPage() {
           <div className="mt-3 px-2">
             <NetWorthChart
               currency={cur}
+              series={windowed}
               startMonthISO={startISO}
-              planSeries={windowedPlan}
-              actualSeries={showActual ? windowedActual : undefined}
-              bands={showRisk ? windowedBands : undefined}
               heightPx={660}
               fixedWidthPx={1080}
             />
           </div>
         </div>
-      </div>
 
-      <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Insights</div>
-        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Quick signals from your plan</div>
-
-        <div className="mt-4 space-y-3">
-          <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Savings rate (12m)</div>
-            <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
-              {(insights.savingsRate * 100).toFixed(1)}%
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Avg monthly surplus (12m)</div>
-            <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
-              {money(insights.surplus12, cur)}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Runway (if negative)</div>
-            <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
-              {insights.runwayMonths > 0 ? `${insights.runwayMonths.toFixed(1)} months` : '-'}
-            </div>
-            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Only shown when your avg surplus is negative.</div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Data</div>
-            <div className="mt-1 text-sm text-slate-700 dark:text-slate-200">Stored locally in your browser. Use Settings → Backup to export.</div>
-          </div>
+        <div className="xl:col-span-4">
+          <AllocationPie title="Allocation by type" currency={cur} slices={allocation} />
         </div>
-      </aside>
+      </div>
     </div>
   );
 }

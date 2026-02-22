@@ -1,127 +1,429 @@
+// app/components/NetWorthChart.tsx
 'use client';
 
-import React, { useMemo, useState } from 'react';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from 'recharts';
-
-type Pt = { monthIndex: number; netWorth: number };
-type Band = { monthIndex: number; p10: number; p90: number };
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { SeriesPoint } from '../lib/engine';
 
 function safeCurrency(code: string) {
   const c = (code || '').trim().toUpperCase();
   if (!/^[A-Z]{3}$/.test(c)) return 'USD';
   try {
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: c }).format(0);
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: c }).format(
+      0
+    );
     return c;
   } catch {
     return 'USD';
   }
 }
 
-function money(n: number, currency: string) {
+function fmtMoney0(n: number, currency: string) {
+  const cur = safeCurrency(currency);
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: safeCurrency(currency),
+    currency: cur,
     maximumFractionDigits: 0,
-  }).format(Number.isFinite(n) ? n : 0);
+  }).format(n);
 }
 
-function addMonthsISO(startISO: string, add: number) {
-  const ok = /^\d{4}-\d{2}$/.test(startISO);
-  const y0 = ok ? Number(startISO.slice(0, 4)) : 2026;
-  const m0 = ok ? Number(startISO.slice(5, 7)) - 1 : 0;
-  const t = y0 * 12 + m0 + add;
-  const y = Math.floor(t / 12);
-  const m = t % 12;
-  return `${y}-${String(m + 1).padStart(2, '0')}`;
+function fmtMoneyCompact(n: number, currency: string) {
+  const cur = safeCurrency(currency);
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: cur,
+    notation: 'compact',
+    compactDisplay: 'short',
+    maximumFractionDigits: 1,
+  }).format(n);
+}
+
+function parseStartMonthISO(iso: string): { y: number; m: number } {
+  const s = (iso || '').trim();
+  if (!/^\d{4}-\d{2}$/.test(s)) return { y: 2026, m: 0 };
+  const y = Number(s.slice(0, 4));
+  const mo = Number(s.slice(5, 7)) - 1;
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || mo < 0 || mo > 11) {
+    return { y: 2026, m: 0 };
+  }
+  return { y, m: mo };
+}
+
+const MON = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+
+function addMonths(startY: number, startM: number, add: number) {
+  const total = startY * 12 + startM + add;
+  const y = Math.floor(total / 12);
+  const m = total % 12;
+  return { y, m };
+}
+
+function labelForMonthIndex(startISO: string, monthIndex: number) {
+  const { y: sy, m: sm } = parseStartMonthISO(startISO);
+  const { y, m } = addMonths(sy, sm, monthIndex);
+  const yy = String(y).slice(-2);
+  return `${MON[m]}${yy}`;
+}
+
+function niceStep(range: number) {
+  const r = Math.max(1, range);
+  const exp = Math.floor(Math.log10(r));
+  const base = Math.pow(10, exp);
+  const frac = r / base;
+
+  let step = base;
+  if (frac <= 2) step = base / 5;
+  else if (frac <= 5) step = base / 2;
+  else step = base;
+
+  step = Math.max(5000, step);
+  return step;
 }
 
 export function NetWorthChart({
   currency,
+  series,
   startMonthISO,
-  planSeries,
-  actualSeries,
-  bands,
-  heightPx = 660,
-  fixedWidthPx,
+  heightPx = 700,
+  fixedWidthPx = 1500,
 }: {
   currency: string;
+  series: SeriesPoint[];
   startMonthISO: string;
-  planSeries: Pt[];
-  actualSeries?: Pt[];
-  bands?: Band[];
   heightPx?: number;
   fixedWidthPx?: number;
 }) {
-  const [hover, setHover] = useState<{ monthISO: string; value: number } | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [wrapWidth, setWrapWidth] = useState<number>(0);
 
-  const data = useMemo(() => {
-    const byIdx = new Map<number, any>();
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
 
-    for (const p of planSeries || []) {
-      byIdx.set(p.monthIndex, {
-        monthIndex: p.monthIndex,
-        monthISO: addMonthsISO(startMonthISO, p.monthIndex),
-        plan: p.netWorth,
-      });
+    const update = () => setWrapWidth(el.clientWidth || 0);
+    update();
+
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => update());
+      ro.observe(el);
+    } else {
+      window.addEventListener('resize', update);
     }
 
-    for (const a of actualSeries || []) {
-      const cur = byIdx.get(a.monthIndex) || {
-        monthIndex: a.monthIndex,
-        monthISO: addMonthsISO(startMonthISO, a.monthIndex),
-      };
-      cur.actual = a.netWorth;
-      byIdx.set(a.monthIndex, cur);
+    return () => {
+      if (ro) ro.disconnect();
+      else window.removeEventListener('resize', update);
+    };
+  }, []);
+
+  const chart = useMemo(() => {
+    const w = Math.max(
+      320,
+      Math.min(fixedWidthPx, Math.max(wrapWidth || 0, 320))
+    );
+    const h = Math.max(360, heightPx - 48);
+
+    const isNarrow = w < 520;
+    const pad = {
+      l: isNarrow ? 88 : 140,
+      r: isNarrow ? 18 : 40,
+      t: 26,
+      b: isNarrow ? 74 : 86,
+    };
+
+    const values = series.map((p) => p.netWorth);
+    const min = values.length ? Math.min(...values) : 0;
+    const max = values.length ? Math.max(...values) : 1;
+
+    const rangeRaw = Math.max(1, max - min);
+    const minA = min - rangeRaw * 0.08;
+    const maxA = max + rangeRaw * 0.1;
+
+    const desiredTicks = isNarrow ? 6 : 7;
+    const roughStep = (maxA - minA) / (desiredTicks - 1);
+    const step = niceStep(roughStep);
+
+    const yMin = Math.floor(minA / step) * step;
+    const yMax = Math.ceil(maxA / step) * step;
+
+    const yTickVals: number[] = [];
+    for (let v = yMin; v <= yMax + step * 0.5; v += step) yTickVals.push(v);
+
+    const x0 = pad.l;
+    const x1 = w - pad.r;
+    const y0 = pad.t;
+    const y1 = h - pad.b;
+
+    const toX = (i: number) => {
+      if (series.length <= 1) return x0;
+      return x0 + (i / (series.length - 1)) * (x1 - x0);
+    };
+
+    const toY = (v: number) => {
+      const t = (v - yMin) / (yMax - yMin || 1);
+      return y1 - t * (y1 - y0);
+    };
+
+    const pts = series.map((p, i) => ({
+      x: toX(i),
+      y: toY(p.netWorth),
+      monthIndex: p.monthIndex,
+      value: p.netWorth,
+    }));
+
+    const buildSmooth = () => {
+      if (pts.length === 0) return '';
+      if (pts.length < 3) {
+        return pts
+          .map(
+            (p, i) =>
+              `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`
+          )
+          .join(' ');
+      }
+      let d = `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)}`;
+      for (let i = 1; i < pts.length - 1; i++) {
+        const p0 = pts[i];
+        const p1 = pts[i + 1];
+        const mx = (p0.x + p1.x) / 2;
+        const my = (p0.y + p1.y) / 2;
+        d += ` Q ${p0.x.toFixed(2)} ${p0.y.toFixed(2)} ${mx.toFixed(
+          2
+        )} ${my.toFixed(2)}`;
+      }
+      const last = pts[pts.length - 1];
+      d += ` T ${last.x.toFixed(2)} ${last.y.toFixed(2)}`;
+      return d;
+    };
+
+    const lineD = buildSmooth();
+    const bottomY = h - pad.b;
+    const first = pts[0];
+    const last = pts[pts.length - 1];
+    const areaD =
+      pts.length > 0
+        ? `${lineD} L ${last.x.toFixed(2)} ${bottomY.toFixed(
+            2
+          )} L ${first.x.toFixed(2)} ${bottomY.toFixed(2)} Z`
+        : '';
+
+    const lastMonth = series.length ? series[series.length - 1].monthIndex : 0;
+    const count = Math.max(1, lastMonth + 1);
+
+    const plotW = Math.max(1, x1 - x0);
+    const pxPerPoint = count <= 1 ? plotW : plotW / (count - 1);
+
+    const minLabelSpacing = isNarrow ? 44 : 56;
+    const everyByPx = Math.max(
+      1,
+      Math.ceil(minLabelSpacing / Math.max(1, pxPerPoint))
+    );
+
+    const everyByMonths =
+      lastMonth <= 6 ? 1 : lastMonth <= 12 ? 1 : lastMonth <= 24 ? 2 : 3;
+
+    const every = Math.max(everyByPx, everyByMonths);
+
+    const xTicks: { m: number; x: number }[] = [];
+    for (let m = 0; m <= lastMonth; m += every) xTicks.push({ m, x: toX(m) });
+
+    if (lastMonth > 0 && xTicks.length) {
+      const lastTick = xTicks[xTicks.length - 1];
+      if (lastTick.m !== lastMonth)
+        xTicks.push({ m: lastMonth, x: toX(lastMonth) });
+    } else if (lastMonth === 0) {
+      xTicks.push({ m: 0, x: toX(0) });
     }
 
-    for (const b of bands || []) {
-      const cur = byIdx.get(b.monthIndex) || {
-        monthIndex: b.monthIndex,
-        monthISO: addMonthsISO(startMonthISO, b.monthIndex),
-      };
-      cur.p10 = b.p10;
-      cur.p90 = b.p90;
-      byIdx.set(b.monthIndex, cur);
-    }
+    const yTicks = yTickVals.map((v) => ({ v, y: toY(v) }));
+    const yFmt =
+      Math.max(Math.abs(yMin), Math.abs(yMax)) >= 50_000_000
+        ? fmtMoneyCompact
+        : fmtMoney0;
 
-    return Array.from(byIdx.values()).sort((x, y) => x.monthIndex - y.monthIndex);
-  }, [planSeries, actualSeries, bands, startMonthISO]);
+    return { w, h, pad, pts, lineD, areaD, xTicks, yTicks, yFmt };
+  }, [series, fixedWidthPx, heightPx, wrapWidth]);
 
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (!active || !payload?.length) return null;
-    const row = payload[0]?.payload;
-    const val = row?.actual ?? row?.plan;
-    const monthISO = row?.monthISO;
-    if (typeof val === 'number' && typeof monthISO === 'string') {
-      setHover({ monthISO, value: val });
-    }
-    return null;
-  };
+  function updateHoverFromClientX(clientX: number) {
+    if (!wrapRef.current || chart.pts.length === 0) return;
+    const rect = wrapRef.current.getBoundingClientRect();
+    const x = clientX - rect.left;
+
+    const x0 = chart.pad.l;
+    const x1 = chart.w - chart.pad.r;
+    const clamped = Math.min(x1, Math.max(x0, x));
+    const t = (clamped - x0) / (x1 - x0 || 1);
+    const i = Math.round(t * (chart.pts.length - 1));
+    setHoverIdx(i);
+  }
+
+  const hover = hoverIdx != null ? chart.pts[hoverIdx] : null;
+  const selected =
+    hover ?? (chart.pts.length ? chart.pts[chart.pts.length - 1] : null);
+  const endValue = series[series.length - 1]?.netWorth ?? 0;
+  const axisFill = '#0f172a';
+  const axisFillDark = '#e2e8f0';
 
   return (
-    <div className="relative" style={{ width: fixedWidthPx ? `${fixedWidthPx}px` : '100%' }}>
-      {/* big top-right hover readout */}
-      <div className="pointer-events-none absolute right-3 top-3 z-10 rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
-        <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Hover</div>
-        <div className="mt-0.5 text-base font-semibold text-slate-900 dark:text-slate-100">
-          {hover?.monthISO ?? '—'}
+    <div className="w-full" style={{ height: heightPx }}>
+      <div className="mb-2 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+        <div>
+          End value:{' '}
+          <span className="font-medium text-slate-900 dark:text-slate-100">
+            {fmtMoney0(endValue, currency)}
+          </span>
         </div>
-        <div className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-          {hover ? money(hover.value, currency) : '—'}
+        <div>
+          {hover ? 'Drag/tap to inspect points' : 'Hover (or tap) for exact month + value'}
         </div>
       </div>
 
-      <div style={{ height: `${heightPx}px` }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 16, right: 16, left: 0, bottom: 8 }}>
-            <XAxis dataKey="monthISO" tick={{ fontSize: 12 }} minTickGap={24} />
-            <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => money(v, currency)} width={84} />
-            <Tooltip content={<CustomTooltip />} />
+      <div
+        ref={wrapRef}
+        className="relative h-[calc(100%-28px)] w-full overflow-x-auto overflow-y-hidden rounded-xl border border-slate-200/60 dark:border-slate-800/60"
+      >
+        {selected ? (
+          <div className="pointer-events-none absolute right-3 top-3 z-10 rounded-xl bg-white/90 px-3 py-2 text-right shadow-sm ring-1 ring-slate-200/70 backdrop-blur-sm dark:bg-slate-900/80 dark:ring-slate-700/70">
+            <div className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+              {labelForMonthIndex(startMonthISO, selected.monthIndex)}
+            </div>
+            <div className="mt-1 text-lg font-semibold leading-none tracking-tight text-slate-900 dark:text-slate-100 sm:text-xl">
+              {fmtMoney0(selected.value, currency)}
+            </div>
+          </div>
+        ) : null}
 
-            <Line type="monotone" dataKey="plan" dot={false} strokeWidth={3} />
-            {actualSeries ? <Line type="monotone" dataKey="actual" dot={false} strokeWidth={3} /> : null}
-          </LineChart>
-        </ResponsiveContainer>
+        <svg
+          width={chart.w}
+          height={chart.h}
+          className="block"
+          onPointerMove={(e) => updateHoverFromClientX(e.clientX)}
+          onPointerDown={(e) => updateHoverFromClientX(e.clientX)}
+          onPointerLeave={() => setHoverIdx(null)}
+          role="img"
+          aria-label="Net worth projection chart"
+          style={{ touchAction: 'none' }}
+        >
+          <defs>
+            <linearGradient id="nwFillApple" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="currentColor" stopOpacity="0.16" />
+              <stop offset="100%" stopColor="currentColor" stopOpacity="0.02" />
+            </linearGradient>
+
+            <filter id="nwGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow
+                dx="0"
+                dy="2"
+                stdDeviation="2.2"
+                floodColor="currentColor"
+                floodOpacity="0.18"
+              />
+              <feDropShadow
+                dx="0"
+                dy="6"
+                stdDeviation="6.0"
+                floodColor="currentColor"
+                floodOpacity="0.10"
+              />
+            </filter>
+          </defs>
+
+          {chart.yTicks.map((t, idx) => (
+            <g key={idx}>
+              <text
+                x={chart.pad.l - 16}
+                y={t.y + 6}
+                textAnchor="end"
+                fontSize="14"
+                fill={axisFill}
+                className="dark:hidden"
+                opacity={0.95}
+              >
+                {chart.yFmt(t.v, currency)}
+              </text>
+              <text
+                x={chart.pad.l - 16}
+                y={t.y + 6}
+                textAnchor="end"
+                fontSize="14"
+                fill={axisFillDark}
+                className="hidden dark:block"
+                opacity={0.92}
+              >
+                {chart.yFmt(t.v, currency)}
+              </text>
+            </g>
+          ))}
+
+          {chart.xTicks.map((t, idx) => (
+            <g key={idx}>
+              <text
+                x={t.x}
+                y={chart.h - chart.pad.b + 44}
+                textAnchor="middle"
+                fontSize="14"
+                fill={axisFill}
+                className="dark:hidden"
+                opacity={t.m % 12 === 0 ? 0.95 : 0.85}
+              >
+                {labelForMonthIndex(startMonthISO, t.m)}
+              </text>
+              <text
+                x={t.x}
+                y={chart.h - chart.pad.b + 44}
+                textAnchor="middle"
+                fontSize="14"
+                fill={axisFillDark}
+                className="hidden dark:block"
+                opacity={t.m % 12 === 0 ? 0.92 : 0.75}
+              >
+                {labelForMonthIndex(startMonthISO, t.m)}
+              </text>
+            </g>
+          ))}
+
+          <path d={chart.areaD} fill="url(#nwFillApple)" />
+
+          <path
+            d={chart.lineD}
+            fill="none"
+            stroke="currentColor"
+            opacity={0.65}
+            strokeWidth={6}
+            strokeLinecap="round"
+            filter="url(#nwGlow)"
+          />
+
+          <path
+            d={chart.lineD}
+            fill="none"
+            stroke="currentColor"
+            opacity={0.96}
+            strokeWidth={3.8}
+            strokeLinecap="round"
+          />
+
+          {selected ? (
+            <g>
+              <line
+                x1={selected.x}
+                x2={selected.x}
+                y1={chart.pad.t}
+                y2={chart.h - chart.pad.b}
+                stroke="currentColor"
+                opacity={0.12}
+              />
+              <circle
+                cx={selected.x}
+                cy={selected.y}
+                r={8.5}
+                fill="currentColor"
+                opacity={0.98}
+              />
+            </g>
+          ) : null}
+        </svg>
       </div>
     </div>
   );
