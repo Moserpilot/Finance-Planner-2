@@ -16,30 +16,54 @@ function safeCurrency(code: string) {
   }
 }
 
-function money(n: number, currency: string) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: safeCurrency(currency),
-    maximumFractionDigits: 0,
-  }).format(Number.isFinite(n) ? n : 0);
+function formatWithCommas(n: number) {
+  const x = Number.isFinite(n) ? n : 0;
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(x);
+}
+
+function parseMoneyLoose(v: string) {
+  const cleaned = String(v).replace(/[$,\s]/g, '');
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
 }
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-function toNumber(v: string) {
-  const n = Number(String(v).replace(/[$, ]/g, ''));
-  return Number.isFinite(n) ? n : 0;
+function MoneyInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="mt-1 flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <span className="mr-2 text-sm text-slate-400">$</span>
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          inputMode="decimal"
+          className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none dark:text-slate-100"
+        />
+      </div>
+    </div>
+  );
 }
 
 export default function ExpensesPage() {
-  const [plan, setPlanState] = useState<Plan | null>(null);
+  const [plan, setPlan] = useState<Plan | null>(null);
   const [editMonthISO, setEditMonthISO] = useState('2026-01');
+  const [amountDraft, setAmountDraft] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const p = loadPlan();
-    setPlanState(p);
+    setPlan(p);
     setEditMonthISO(p.startMonthISO || '2026-01');
   }, []);
 
@@ -47,28 +71,19 @@ export default function ExpensesPage() {
     if (plan) savePlan(plan);
   }, [plan]);
 
-  const cur = useMemo(() => safeCurrency(plan?.currency || 'USD'), [plan?.currency]);
-
-  const expenseList = useMemo<IncomeExpenseItem[]>(
-    () => (plan?.expenses && Array.isArray(plan.expenses) ? plan.expenses : []),
-    [plan]
-  );
+  const items = useMemo(() => (Array.isArray(plan?.expenses) ? plan!.expenses : []), [plan]);
 
   const monthTotal = useMemo(() => {
-    return expenseList.reduce((sum, it) => sum + amountForMonth(it, editMonthISO), 0);
-  }, [expenseList, editMonthISO]);
+    return items.reduce((sum, it) => sum + amountForMonth(it, editMonthISO), 0);
+  }, [items, editMonthISO]);
 
-  function setPlan(next: Plan) {
-    setPlanState(next);
+  function patchPlan(next: Plan) {
+    setPlan(next);
   }
 
   function updateItem(id: string, patch: Partial<IncomeExpenseItem>) {
     if (!plan) return;
-    const next = {
-      ...plan,
-      expenses: expenseList.map((it) => (it.id === id ? { ...it, ...patch } : it)),
-    };
-    setPlan(next);
+    patchPlan({ ...plan, expenses: items.map((it) => (it.id === id ? { ...it, ...patch } : it)) });
   }
 
   function addItem() {
@@ -80,22 +95,36 @@ export default function ExpensesPage() {
       cadence: 'monthly',
       startMonthISO: plan.startMonthISO || '2026-01',
     };
-    setPlan({ ...plan, expenses: [...expenseList, nextItem] });
+    patchPlan({ ...plan, expenses: [...items, nextItem] });
+    setAmountDraft((d) => ({ ...d, [nextItem.id]: '0' }));
   }
 
   function removeItem(id: string) {
     if (!plan) return;
-    setPlan({ ...plan, expenses: expenseList.filter((it) => it.id !== id) });
+    patchPlan({ ...plan, expenses: items.filter((it) => it.id !== id) });
+    setAmountDraft((d) => {
+      const { [id]: _, ...rest } = d;
+      return rest;
+    });
   }
 
-  if (!plan) {
-    return <div className="text-sm text-slate-500 dark:text-slate-400">Loading…</div>;
+  function getDraft(id: string, amt: number) {
+    const v = amountDraft[id];
+    return v != null ? v : formatWithCommas(amt);
   }
 
-  const start = plan.startMonthISO || '2026-01';
+  function commitAmount(id: string) {
+    const it = items.find((x) => x.id === id);
+    if (!it) return;
+    const raw = amountDraft[id] ?? String(it.amount ?? 0);
+    const n = parseMoneyLoose(raw);
+    updateItem(id, { amount: n });
+    setAmountDraft((d) => ({ ...d, [id]: formatWithCommas(n) }));
+  }
 
-  const label = 'text-xs font-medium text-slate-500 dark:text-slate-400';
-  const input =
+  if (!plan) return <div className="text-sm text-slate-500 dark:text-slate-400">Loading…</div>;
+
+  const inputBase =
     'mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm ' +
     'text-slate-900 shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200 ' +
     'dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-blue-500/30';
@@ -104,14 +133,16 @@ export default function ExpensesPage() {
     <div className="space-y-6">
       <div>
         <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Expenses</div>
-        <div className="text-sm text-slate-500 dark:text-slate-400">Add recurring and one-time expense items</div>
+        <div className="text-sm text-slate-500 dark:text-slate-400">Recurring + one-time expenses</div>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Month total</div>
-            <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">{money(monthTotal, cur)}</div>
+            <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
+              {new Intl.NumberFormat('en-US', { style: 'currency', currency: safeCurrency(plan.currency || 'USD'), maximumFractionDigits: 0 }).format(monthTotal)}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -146,39 +177,34 @@ export default function ExpensesPage() {
         </div>
 
         <div className="mt-4 space-y-3">
-          {expenseList.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-              No expense items yet. Click “Add expense”.
-            </div>
-          ) : null}
-
-          {expenseList.map((it) => (
+          {items.map((it) => (
             <div
               key={it.id}
-              className="grid gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800 md:grid-cols-[1fr_200px_160px_160px_44px]"
+              className="grid gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800 md:grid-cols-[1fr_220px_160px_160px_44px]"
             >
               <div>
-                <div className={label}>Name</div>
-                <input value={it.name || ''} onChange={(e) => updateItem(it.id, { name: e.target.value })} className={input} />
+                <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Name</div>
+                <input
+                  value={it.name || ''}
+                  onChange={(e) => updateItem(it.id, { name: e.target.value })}
+                  className={inputBase}
+                />
               </div>
 
-              <div className="relative">
-                <div className={label}>Amount</div>
-                <span className="pointer-events-none absolute left-3 top-[34px] text-sm text-slate-400">$</span>
-                <input
-                  value={String(it.amount ?? 0)}
-                  onChange={(e) => updateItem(it.id, { amount: toNumber(e.target.value) })}
-                  className={input + ' pl-7'}
-                  inputMode="decimal"
+              <div onBlur={() => commitAmount(it.id)}>
+                <MoneyInput
+                  label="Amount"
+                  value={getDraft(it.id, Number(it.amount ?? 0))}
+                  onChange={(v) => setAmountDraft((d) => ({ ...d, [it.id]: v }))}
                 />
               </div>
 
               <div>
-                <div className={label}>Cadence</div>
+                <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Cadence</div>
                 <select
                   value={it.cadence || 'monthly'}
                   onChange={(e) => updateItem(it.id, { cadence: e.target.value as any })}
-                  className={input}
+                  className={inputBase}
                 >
                   <option value="monthly">Monthly</option>
                   <option value="quarterly">Quarterly</option>
@@ -188,11 +214,11 @@ export default function ExpensesPage() {
               </div>
 
               <div>
-                <div className={label}>Start</div>
+                <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Start</div>
                 <input
-                  value={it.startMonthISO || start}
+                  value={it.startMonthISO || plan.startMonthISO || '2026-01'}
                   onChange={(e) => updateItem(it.id, { startMonthISO: e.target.value })}
-                  className={input}
+                  className={inputBase}
                   placeholder="YYYY-MM"
                 />
               </div>
@@ -201,13 +227,18 @@ export default function ExpensesPage() {
                 type="button"
                 onClick={() => removeItem(it.id)}
                 className="mt-5 h-10 w-10 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-white/5"
-                aria-label="Remove"
                 title="Remove"
               >
                 ✕
               </button>
             </div>
           ))}
+
+          {items.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+              No expense items yet. Click “Add expense”.
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
