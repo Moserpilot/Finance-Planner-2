@@ -28,6 +28,11 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+function toNumber(v: string) {
+  const n = Number(String(v).replace(/[$, ]/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
 export default function ExpensesPage() {
   const [plan, setPlanState] = useState<Plan | null>(null);
   const [editMonthISO, setEditMonthISO] = useState('2026-01');
@@ -89,6 +94,12 @@ export default function ExpensesPage() {
 
   const start = plan.startMonthISO || '2026-01';
 
+  const label = 'text-xs font-medium text-slate-500 dark:text-slate-400';
+  const input =
+    'mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm ' +
+    'text-slate-900 shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200 ' +
+    'dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-blue-500/30';
+
   return (
     <div className="space-y-6">
       <div>
@@ -100,36 +111,34 @@ export default function ExpensesPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Month total</div>
-            <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
-              {money(monthTotal, cur)}
-            </div>
+            <div className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">{money(monthTotal, cur)}</div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
               onClick={() => setEditMonthISO(addMonthsISO(editMonthISO, -1))}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium dark:border-slate-800 dark:bg-slate-900"
             >
               ◀
             </button>
 
-            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium dark:border-slate-800 dark:bg-slate-900">
+            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
               {editMonthISO}
             </div>
 
             <button
               type="button"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
               onClick={() => setEditMonthISO(addMonthsISO(editMonthISO, 1))}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium dark:border-slate-800 dark:bg-slate-900"
             >
               ▶
             </button>
 
             <button
               type="button"
+              className="ml-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
               onClick={addItem}
-              className="ml-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white"
             >
               + Add expense
             </button>
@@ -139,49 +148,61 @@ export default function ExpensesPage() {
         <div className="mt-4 space-y-3">
           {expenseList.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-              No expense items yet.
+              No expense items yet. Click “Add expense”.
             </div>
           ) : null}
 
           {expenseList.map((it) => (
             <div
               key={it.id}
-              className="grid gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800 md:grid-cols-[1fr_180px_160px_160px_44px]"
+              className="grid gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800 md:grid-cols-[1fr_200px_160px_160px_44px]"
             >
-              <input
-                value={it.name || ''}
-                onChange={(e) => updateItem(it.id, { name: e.target.value })}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-900"
-              />
+              <div>
+                <div className={label}>Name</div>
+                <input value={it.name || ''} onChange={(e) => updateItem(it.id, { name: e.target.value })} className={input} />
+              </div>
 
-              <input
-                value={String(it.amount ?? 0)}
-                onChange={(e) => updateItem(it.id, { amount: Number(e.target.value) || 0 })}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-900"
-              />
+              <div className="relative">
+                <div className={label}>Amount</div>
+                <span className="pointer-events-none absolute left-3 top-[34px] text-sm text-slate-400">$</span>
+                <input
+                  value={String(it.amount ?? 0)}
+                  onChange={(e) => updateItem(it.id, { amount: toNumber(e.target.value) })}
+                  className={input + ' pl-7'}
+                  inputMode="decimal"
+                />
+              </div>
 
-              <select
-                value={it.cadence || 'monthly'}
-                onChange={(e) => updateItem(it.id, { cadence: e.target.value as any })}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-900"
-              >
-                <option value="monthly">Monthly</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="yearly">Yearly</option>
-                <option value="one-time">One-time</option>
-              </select>
+              <div>
+                <div className={label}>Cadence</div>
+                <select
+                  value={it.cadence || 'monthly'}
+                  onChange={(e) => updateItem(it.id, { cadence: e.target.value as any })}
+                  className={input}
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="yearly">Yearly</option>
+                  <option value="one-time">One-time</option>
+                </select>
+              </div>
 
-              <input
-                value={it.startMonthISO || start}
-                onChange={(e) => updateItem(it.id, { startMonthISO: e.target.value })}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-900"
-                placeholder="YYYY-MM"
-              />
+              <div>
+                <div className={label}>Start</div>
+                <input
+                  value={it.startMonthISO || start}
+                  onChange={(e) => updateItem(it.id, { startMonthISO: e.target.value })}
+                  className={input}
+                  placeholder="YYYY-MM"
+                />
+              </div>
 
               <button
                 type="button"
                 onClick={() => removeItem(it.id)}
-                className="rounded-xl border border-slate-200 text-slate-500 dark:border-slate-800"
+                className="mt-5 h-10 w-10 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-white/5"
+                aria-label="Remove"
+                title="Remove"
               >
                 ✕
               </button>
