@@ -1,184 +1,391 @@
+// app/assumptions/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import type { Plan } from '../lib/store';
-import { loadPlan, savePlan } from '../lib/store';
+import { loadPlan, savePlan, newNetWorthAccount } from '../lib/store';
+import { netWorthAsOf, latestNetWorthSnapshotMonth } from '../lib/engine';
 
 function safeCurrency(code: string) {
   const c = (code || '').trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(c)) return 'USD';
-  try {
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: c }).format(0);
-    return c;
-  } catch {
-    return 'USD';
-  }
-}
-
-function parseNumberLoose(v: string) {
-  // keeps decimals; removes $, commas, %, spaces
-  const cleaned = String(v).replace(/[$,%\s]/g, '').replace(/,/g, '');
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function normalizePctInput(v: string) {
-  // If user types 0.025 we treat as 2.5%
-  const n = parseNumberLoose(v);
-  if (n > 0 && n <= 1) return n * 100;
-  return n;
+  return /^[A-Z]{3}$/.test(c) ? c : 'USD';
 }
 
 function money(n: number, currency: string) {
+  const cur = safeCurrency(currency);
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: safeCurrency(currency),
+    currency: cur,
     maximumFractionDigits: 0,
   }).format(Number.isFinite(n) ? n : 0);
 }
 
-function InputGroup({
-  label,
-  value,
-  onChange,
-  prefix,
-  suffix,
-  hint,
-  inputMode = 'decimal',
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  prefix?: string;
-  suffix?: string;
-  hint?: string;
-  inputMode?: 'decimal' | 'numeric';
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</div>
-
-      <div className="mt-2 flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        {prefix ? <span className="mr-2 text-sm text-slate-400">{prefix}</span> : null}
-
-        <input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          inputMode={inputMode}
-          className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none dark:text-slate-100"
-        />
-
-        {suffix ? <span className="ml-2 text-sm text-slate-400">{suffix}</span> : null}
-      </div>
-
-      {hint ? <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{hint}</div> : null}
-    </div>
+function numberWithCommas(n: number) {
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(
+    Number.isFinite(n) ? n : 0
   );
+}
+
+function parseMoneyLoose(v: string) {
+  const cleaned = String(v).replace(/[$,%\s,]+/g, '');
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function parsePctLoose(v: string) {
+  const cleaned = String(v).replace(/[%\s,]+/g, '');
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function addMonthsISO(startISO: string, add: number) {
+  const ok = /^\d{4}-\d{2}$/.test(startISO);
+  const y0 = ok ? Number(startISO.slice(0, 4)) : 2026;
+  const m0 = ok ? Number(startISO.slice(5, 7)) - 1 : 0;
+  const t = y0 * 12 + m0 + add;
+  const y = Math.floor(t / 12);
+  const m = t % 12;
+  return `${y}-${String(m + 1).padStart(2, '0')}`;
+}
+
+function buildMonthOptions(startMonthISO: string, months = 360) {
+  return Array.from({ length: months + 1 }, (_, i) =>
+    addMonthsISO(startMonthISO, i)
+  );
+}
+
+function upsertDated(
+  arr: { monthISO: string; amount: number }[],
+  monthISO: string,
+  amount: number
+) {
+  const next = [...arr];
+  const i = next.findIndex((x) => x.monthISO === monthISO);
+  if (i >= 0) next[i] = { monthISO, amount };
+  else next.push({ monthISO, amount });
+  next.sort((a, b) =>
+    a.monthISO < b.monthISO ? -1 : a.monthISO > b.monthISO ? 1 : 0
+  );
+  return next;
 }
 
 export default function AssumptionsPage() {
   const [plan, setPlan] = useState<Plan | null>(null);
-
-  // local string state prevents “helpful” formatting from breaking decimals
-  const [expRetStr, setExpRetStr] = useState('6.0');
-  const [inflStr, setInflStr] = useState('3.0');
-  const [goalStr, setGoalStr] = useState('1000000');
-  const [startStr, setStartStr] = useState('2026-01');
+  const [editMonthISO, setEditMonthISO] = useState<string>('2026-01');
+  const [goalDraft, setGoalDraft] = useState('0');
+  const [returnDraft, setReturnDraft] = useState('0');
 
   useEffect(() => {
     const p = loadPlan();
     setPlan(p);
-
-    setExpRetStr(String(Number(p.expectedReturnPct ?? 6)));
-    setInflStr(String(Number(p.inflationPct ?? 3)));
-    setGoalStr(String(Number(p.goalNetWorth ?? 1000000)));
-    setStartStr(String(p.startMonthISO ?? '2026-01'));
+    setEditMonthISO(p.startMonthISO || '2026-01');
+    setGoalDraft(numberWithCommas(p.goalNetWorth ?? 0));
+    setReturnDraft(String(p.expectedReturnPct ?? 0));
   }, []);
 
   useEffect(() => {
-    if (!plan) return;
-    savePlan(plan);
+    if (plan) savePlan(plan);
   }, [plan]);
 
   const cur = useMemo(() => safeCurrency(plan?.currency || 'USD'), [plan?.currency]);
+
+  const monthOptions = useMemo(() => {
+    const start = plan?.startMonthISO || '2026-01';
+    return buildMonthOptions(start, 360);
+  }, [plan?.startMonthISO]);
+
+  function updatePlan(patch: Partial<Plan>) {
+    setPlan((prev) => (prev ? { ...prev, ...patch } : prev));
+  }
+
+  function updateAccount(id: string, patch: any) {
+    setPlan((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        netWorthAccounts: prev.netWorthAccounts.map((a) =>
+          a.id === id ? { ...a, ...patch } : a
+        ),
+      };
+    });
+  }
+
+  function removeAccount(id: string) {
+    setPlan((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        netWorthAccounts: prev.netWorthAccounts.filter((a) => a.id !== id),
+      };
+    });
+  }
+
+  function setAccountForMonth(accountId: string, amount: number) {
+    setPlan((prev) => {
+      if (!prev) return prev;
+      const acct = prev.netWorthAccounts.find((a) => a.id === accountId);
+      if (!acct) return prev;
+
+      const balances = upsertDated(acct.balances || [], editMonthISO, amount);
+
+      return {
+        ...prev,
+        netWorthAccounts: prev.netWorthAccounts.map((a) =>
+          a.id === accountId ? { ...a, balances } : a
+        ),
+      };
+    });
+  }
+
+  function addAccount() {
+    setPlan((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        netWorthAccounts: [
+          ...prev.netWorthAccounts,
+          newNetWorthAccount('New account'),
+        ],
+      };
+    });
+  }
 
   if (!plan) {
     return <div className="text-sm text-slate-500 dark:text-slate-400">Loading…</div>;
   }
 
-  function patch(p: Partial<Plan>) {
-    setPlan({ ...plan, ...p });
-  }
+  const balancesDisabled = plan.netWorthMode === 'projection';
 
-  function commitExpectedReturn() {
-    const pct = normalizePctInput(expRetStr);
-    patch({ expectedReturnPct: pct });
-    setExpRetStr(String(pct));
-  }
+  const startMonth = plan.startMonthISO || '2026-01';
+  const latestSnap = latestNetWorthSnapshotMonth(plan);
+  const anchorMonth =
+    plan.netWorthMode === 'projection' ? startMonth : latestSnap ?? startMonth;
 
-  function commitInflation() {
-    const pct = normalizePctInput(inflStr);
-    patch({ inflationPct: pct });
-    setInflStr(String(pct));
-  }
+  const monthNetWorth = netWorthAsOf(plan, editMonthISO)?.netWorth ?? 0;
+  const anchorNetWorth = netWorthAsOf(plan, anchorMonth)?.netWorth ?? 0;
 
-  function commitGoal() {
-    const n = parseNumberLoose(goalStr);
-    patch({ goalNetWorth: n });
-    setGoalStr(String(n));
-  }
+  const modeHelp =
+    plan.netWorthMode === 'snapshot'
+      ? 'Track actual balances only. Uses only balances you enter. No projections or cash-flow compounding.'
+      : plan.netWorthMode === 'projection'
+      ? 'Hypothetical “what-if” model. Uses expected return + cash flow and ignores real balances you enter later.'
+      : 'Reality-anchored projection. Projects forward, but snaps to your real balance updates when you enter them.';
 
-  function commitStart() {
-    patch({ startMonthISO: startStr });
-  }
+  const label = 'text-xs font-medium text-slate-500 dark:text-slate-400';
+  const input =
+    'mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-blue-500/30';
+
+  const affixWrap =
+    'mt-1 flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-200 dark:border-slate-800 dark:bg-slate-900 dark:focus-within:ring-blue-500/30';
+  const affixInput =
+    'w-full bg-transparent text-slate-900 outline-none dark:text-slate-100';
 
   return (
     <div className="space-y-6">
       <div>
-        <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Assumptions</div>
-        <div className="text-sm text-slate-500 dark:text-slate-400">Baseline settings for projections</div>
+        <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+          Assumptions
+        </div>
+        <div className="text-sm text-slate-500 dark:text-slate-400">
+          Configure currency, goal, expected return, and net worth mode / balances.
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div onBlur={commitExpectedReturn}>
-          <InputGroup
-            label="Expected return"
-            value={expRetStr}
-            onChange={setExpRetStr}
-            suffix="%"
-            hint="Decimals allowed (e.g., 2.5)."
-          />
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="grid gap-4 md:grid-cols-12 md:items-end">
+          <label className="md:col-span-3">
+            <div className={label}>Currency</div>
+            <input
+              className={input}
+              value={plan.currency}
+              onChange={(e) => updatePlan({ currency: e.target.value })}
+              placeholder="USD"
+            />
+          </label>
+
+          <label className="md:col-span-3">
+            <div className={label}>Start month (YYYY-MM)</div>
+            <input
+              className={input}
+              value={plan.startMonthISO}
+              onChange={(e) => updatePlan({ startMonthISO: e.target.value })}
+              placeholder="2026-01"
+            />
+          </label>
+
+          <label className="md:col-span-3">
+            <div className={label}>Goal net worth ({cur})</div>
+            <div className={affixWrap}>
+              <span className="pr-2 text-slate-500 dark:text-slate-400">$</span>
+              <input
+                type="text"
+                className={affixInput}
+                value={goalDraft}
+                onChange={(e) => setGoalDraft(e.target.value)}
+                onBlur={() => {
+                  const parsed = parseMoneyLoose(goalDraft);
+                  updatePlan({ goalNetWorth: parsed });
+                  setGoalDraft(numberWithCommas(parsed));
+                }}
+              />
+            </div>
+          </label>
+
+          <label className="md:col-span-3">
+            <div className={label}>Expected return (yearly)</div>
+            <div className={affixWrap}>
+              <input
+                type="text"
+                className={affixInput}
+                value={returnDraft}
+                onChange={(e) => setReturnDraft(e.target.value)}
+                onBlur={() => {
+                  const parsed = parsePctLoose(returnDraft);
+                  updatePlan({ expectedReturnPct: parsed });
+                  setReturnDraft(String(parsed));
+                }}
+              />
+              <span className="pl-2 text-slate-500 dark:text-slate-400">%</span>
+            </div>
+          </label>
         </div>
 
-        <div onBlur={commitInflation}>
-          <InputGroup
-            label="Inflation"
-            value={inflStr}
-            onChange={setInflStr}
-            suffix="%"
-            hint="Decimals allowed (e.g., 2.5)."
-          />
+        <div className="mt-5 grid gap-4 md:grid-cols-12 md:items-start">
+          <label className="md:col-span-4">
+            <div className={label}>Net worth mode</div>
+            <select
+              className={input}
+              value={plan.netWorthMode}
+              onChange={(e) => {
+                const v = e.target.value;
+                const mode =
+                  v === 'snapshot' || v === 'projection' || v === 'hybrid'
+                    ? v
+                    : 'hybrid';
+                updatePlan({ netWorthMode: mode });
+              }}
+            >
+              <option value="snapshot">Track actual balances</option>
+              <option value="projection">Hypothetical projection</option>
+              <option value="hybrid">Reality-anchored projection</option>
+            </select>
+
+            <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">{modeHelp}</div>
+          </label>
+
+          <div className="md:col-span-8 rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+            <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+              Net worth quick read
+            </div>
+            <div className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Anchor month: <span className="font-medium text-slate-900 dark:text-slate-100">{anchorMonth}</span>
+              {' · '}
+              Anchor net worth: <span className="font-medium text-slate-900 dark:text-slate-100">{money(anchorNetWorth, cur)}</span>
+            </div>
+            <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Selected month: <span className="font-medium text-slate-900 dark:text-slate-100">{editMonthISO}</span>
+              {' · '}
+              Net worth as-of: <span className="font-medium text-slate-900 dark:text-slate-100">{money(monthNetWorth, cur)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Net worth accounts</div>
+            <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Enter balances by month. In “Hypothetical projection”, balances are disabled.
+            </div>
+          </div>
+
+          <label className="text-sm">
+            <div className="mb-1 text-slate-500 dark:text-slate-400">Edit month</div>
+            <input
+              className={input}
+              value={editMonthISO}
+              onChange={(e) => setEditMonthISO(e.target.value)}
+              placeholder="2026-01"
+            />
+          </label>
+
+          <button
+            type="button"
+            onClick={addAccount}
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm dark:border-slate-800"
+          >
+            Add account
+          </button>
         </div>
 
-        <div onBlur={commitGoal}>
-          <InputGroup
-            label="Goal net worth"
-            value={goalStr}
-            onChange={setGoalStr}
-            prefix="$"
-            hint={`Currently: ${money(Number(plan.goalNetWorth ?? 0), cur)}`}
-          />
+        {balancesDisabled ? (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+            Balances are disabled in <span className="font-medium">Hypothetical projection</span> mode.
+          </div>
+        ) : null}
+
+        <div className="mt-4 space-y-4">
+          {plan.netWorthAccounts.map((a) => {
+            const acctAsOf =
+              netWorthAsOf({ ...plan, netWorthAccounts: [a] }, editMonthISO)
+                ?.netWorth ?? 0;
+
+            return (
+              <div key={a.id} className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                <div className="grid gap-3 md:grid-cols-12 md:items-end">
+                  <label className="md:col-span-5">
+                    <div className={label}>Account name</div>
+                    <input
+                      className={input}
+                      value={a.name}
+                      onChange={(e) => updateAccount(a.id, { name: e.target.value })}
+                    />
+                  </label>
+
+                  <label className="md:col-span-4">
+                    <div className={label}>Balance for {editMonthISO} ({cur})</div>
+                    <input
+                      type="text"
+                      disabled={balancesDisabled}
+                      className={
+                        balancesDisabled
+                          ? 'mt-1 w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-400 outline-none dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-500'
+                          : input
+                      }
+                      defaultValue={money(acctAsOf, cur)}
+                      key={`bal_${a.id}_${editMonthISO}_${acctAsOf}_${cur}_${
+                        balancesDisabled ? 'd' : 'e'
+                      }`}
+                      onBlur={(e) => {
+                        if (balancesDisabled) return;
+                        setAccountForMonth(a.id, parseMoneyLoose(e.target.value));
+                      }}
+                    />
+                  </label>
+
+                  <div className="md:col-span-3 flex items-end justify-end">
+                    <button
+                      type="button"
+                      onClick={() => removeAccount(a.id)}
+                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-rose-600 dark:border-slate-800"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  Tip: Enter a balance in a later month and “Reality-anchored projection” will snap the forecast to it.
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        <div onBlur={commitStart}>
-          <InputGroup
-            label="Start month"
-            value={startStr}
-            onChange={setStartStr}
-            hint="Format: YYYY-MM"
-            inputMode="numeric"
-          />
-        </div>
+        {!plan.netWorthAccounts.length ? (
+          <div className="mt-4 text-sm text-slate-500 dark:text-slate-400">No accounts yet.</div>
+        ) : null}
       </div>
     </div>
   );

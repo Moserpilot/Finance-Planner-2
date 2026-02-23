@@ -45,7 +45,8 @@ export function AllocationPie({
   const normalized =
     total > 0 ? slices.map((s) => ({ ...s, value: Math.max(0, s.value) })) : [];
 
-  const radius = 76;
+  const radius = 72;
+  const stroke = 18;
   const cx = 96;
   const cy = 96;
 
@@ -53,29 +54,19 @@ export function AllocationPie({
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <div className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-        {title}
-      </div>
-      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-        Current net worth mix
-      </div>
+      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</div>
+      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Current net worth mix</div>
 
-      <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-center">
+      <div className="mt-4 flex flex-col gap-5 lg:flex-row lg:items-center">
         <div className="mx-auto shrink-0">
-          <svg
-            width="192"
-            height="192"
-            viewBox="0 0 192 192"
-            role="img"
-            aria-label="Allocation by type pie chart"
-          >
+          <svg width="192" height="192" viewBox="0 0 192 192" role="img" aria-label="Allocation by type pie chart">
             <circle
               cx={cx}
               cy={cy}
               r={radius}
               fill="none"
               stroke="currentColor"
-              strokeWidth="24"
+              strokeWidth={stroke}
               opacity="0.08"
             />
             {normalized.map((slice, i) => {
@@ -94,31 +85,20 @@ export function AllocationPie({
                   d={d}
                   fill="none"
                   stroke={slice.color}
-                  strokeWidth="24"
+                  strokeWidth={stroke}
                   strokeLinecap="butt"
                 />
               );
             })}
-            <circle
-              cx={cx}
-              cy={cy}
-              r="56"
-              fill="white"
-              className="dark:fill-slate-900"
-            />
-            <text
-              x={cx}
-              y={cy - 4}
-              textAnchor="middle"
-              className="fill-slate-500 text-[10px] tracking-[0.14em] dark:fill-slate-400"
-            >
+            <circle cx={cx} cy={cy} r="50" fill="white" className="dark:fill-slate-900" />
+            <text x={cx} y={cy - 2} textAnchor="middle" className="fill-slate-500 text-[9px] dark:fill-slate-400">
               TOTAL
             </text>
             <text
               x={cx}
-              y={cy + 16}
+              y={cy + 15}
               textAnchor="middle"
-              className="fill-slate-900 text-[18px] font-semibold tracking-tight dark:fill-slate-100"
+              className="fill-slate-900 text-[16px] font-semibold dark:fill-slate-100"
             >
               {moneyCompact(total, currency)}
             </text>
@@ -129,25 +109,15 @@ export function AllocationPie({
           {normalized.map((slice) => {
             const portion = total > 0 ? (slice.value / total) * 100 : 0;
             return (
-              <div
-                key={slice.label}
-                className="rounded-xl border border-slate-200/80 px-3 py-2 dark:border-slate-700/80"
-              >
+              <div key={slice.label} className="rounded-lg border border-slate-200/80 px-3 py-2 dark:border-slate-700/80">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: slice.color }}
-                    />
-                    <span className="text-sm font-medium tracking-tight text-slate-900 dark:text-slate-100">
-                      {slice.label}
-                    </span>
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: slice.color }} />
+                    <span className="text-sm text-slate-900 dark:text-slate-100">{slice.label}</span>
                   </div>
-                  <div className="text-xs font-medium tracking-[0.1em] text-slate-500 dark:text-slate-400">
-                    {pct(portion)}
-                  </div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">{pct(portion)}</div>
                 </div>
-                <div className="mt-1 text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+                <div className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100">
                   {moneyCompact(slice.value, currency)}
                 </div>
               </div>
