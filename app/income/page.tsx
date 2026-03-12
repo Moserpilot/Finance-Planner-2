@@ -88,22 +88,30 @@ export default function IncomePage() {
     return buildMonthOptions(start, 360); // 30 years
   }, [plan?.startMonthISO]);
 
-  if (!plan)
+  if (!plan) {
     return (
       <div className="text-sm text-slate-500 dark:text-slate-400">Loading…</div>
     );
+  }
+
+  function withPlan(update: (p: Plan) => Plan) {
+    setPlan((prev) => (prev ? update(prev) : prev));
+  }
 
   function updateItem(id: string, patch: Partial<RecurringItem>) {
-    setPlan({
-      ...plan,
-      income: plan.income.map((it) =>
+    withPlan((prev) => ({
+      ...prev,
+      income: prev.income.map((it) =>
         it.id === id ? { ...it, ...patch } : it
       ),
-    });
+    }));
   }
 
   function removeItem(id: string) {
-    setPlan({ ...plan, income: plan.income.filter((it) => it.id !== id) });
+    withPlan((prev) => ({
+      ...prev,
+      income: prev.income.filter((it) => it.id !== id),
+    }));
   }
 
   function setForMonth(it: RecurringItem, amount: number) {
@@ -117,33 +125,36 @@ export default function IncomePage() {
   }
 
   function addRecurring() {
-    setPlan({ ...plan, income: [...plan.income, newRecurringItem('income')] });
+    withPlan((prev) => ({
+      ...prev,
+      income: [...prev.income, newRecurringItem('income')],
+    }));
   }
 
   function addOneTime() {
-    setPlan({
-      ...plan,
+    withPlan((prev) => ({
+      ...prev,
       oneTimeIncome: [
-        ...plan.oneTimeIncome,
+        ...(prev.oneTimeIncome ?? []),
         newOneTimeItem('income', editMonthISO),
       ],
-    });
+    }));
   }
 
   function updateOneTime(id: string, patch: any) {
-    setPlan({
-      ...plan,
-      oneTimeIncome: plan.oneTimeIncome.map((x) =>
+    withPlan((prev) => ({
+      ...prev,
+      oneTimeIncome: (prev.oneTimeIncome ?? []).map((x) =>
         x.id === id ? { ...x, ...patch } : x
       ),
-    });
+    }));
   }
 
   function removeOneTime(id: string) {
-    setPlan({
-      ...plan,
-      oneTimeIncome: plan.oneTimeIncome.filter((x) => x.id !== id),
-    });
+    withPlan((prev) => ({
+      ...prev,
+      oneTimeIncome: (prev.oneTimeIncome ?? []).filter((x) => x.id !== id),
+    }));
   }
 
   return (
@@ -272,7 +283,7 @@ export default function IncomePage() {
                     </div>
                     <select
                       className="w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-slate-900 outline-none dark:border-slate-800 dark:text-slate-100"
-                      value={it.endMonthISO || ''}
+                      value={it.endMonthISO ?? ''}
                       onChange={(e) =>
                         updateItem(it.id, {
                           endMonthISO: e.target.value || null,
@@ -354,7 +365,7 @@ export default function IncomePage() {
         </div>
 
         <div className="mt-4 space-y-3">
-          {plan.oneTimeIncome.map((it) => (
+          {(plan.oneTimeIncome ?? []).map((it) => (
             <div
               key={it.id}
               className="grid gap-3 rounded-2xl border border-slate-200 p-4 md:grid-cols-12 md:items-end dark:border-slate-800"
@@ -414,7 +425,7 @@ export default function IncomePage() {
             </div>
           ))}
 
-          {!plan.oneTimeIncome.length ? (
+          {!(plan.oneTimeIncome ?? []).length ? (
             <div className="text-sm text-slate-500 dark:text-slate-400">
               No one-time income items.
             </div>
@@ -424,3 +435,4 @@ export default function IncomePage() {
     </div>
   );
 }
+
