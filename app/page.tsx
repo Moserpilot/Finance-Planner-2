@@ -1,4 +1,4 @@
-// app/page.tsx
+﻿// app/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -193,7 +193,6 @@ export default function DashboardPage() {
   const netTone: 'positive' | 'negative' =
     totals.net >= 0 ? 'positive' : 'negative';
 
-  // Aligned mode labels
   const modeLabel =
     plan.netWorthMode === 'snapshot'
       ? 'Track actual balances'
@@ -201,23 +200,12 @@ export default function DashboardPage() {
       ? 'Hypothetical projection'
       : 'Reality-anchored projection';
 
-  // KPI Net Worth:
-  // - snapshot/hybrid: latest actual snapshot (as-of)
-  // - projection: baseline at start month (since reality is ignored)
+  // Single source of truth: same balances structure as Net Worth page (plan.netWorthAccounts).
   const startMonth = plan.startMonthISO || '2026-01';
   const latestSnap = latestNetWorthSnapshotMonth(plan);
-
-  const asOf =
-    plan.netWorthMode === 'projection'
-      ? netWorthAsOf(plan, startMonth)
-      : netWorthAsOf(plan, latestSnap ?? startMonth);
-
-  const netWorthKpi = asOf?.netWorth ?? 0;
-
-  const netWorthSub =
-    plan.netWorthMode === 'projection'
-      ? `Mode: ${modeLabel} · Baseline: ${startMonth}`
-      : `Mode: ${modeLabel} · As of: ${asOf?.monthISO ?? '—'}`;
+  const asOfMonth = plan.netWorthMode === 'projection' ? startMonth : (latestSnap ?? startMonth);
+  const netWorthKpi = netWorthAsOf(plan, asOfMonth)?.netWorth ?? 0;
+  const netWorthSub = `Mode: ${modeLabel} · As of: ${asOfMonth}`;
 
   const projectedNW = series.length
     ? series[series.length - 1].netWorth
@@ -241,7 +229,7 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 md:grid-cols-5">
         <Kpi
-          label="Net Worth (investments)"
+          label="Net Worth (balances)"
           value={money(netWorthKpi, cur)}
           tone="neutral"
           sub={netWorthSub}
@@ -337,8 +325,7 @@ export default function DashboardPage() {
             currency={cur}
             series={windowed}
             startMonthISO={startISO}
-            heightPx={660}
-            fixedWidthPx={1080}
+            heightPx={760}
           />
         </div>
       </div>

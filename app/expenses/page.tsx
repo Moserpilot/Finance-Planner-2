@@ -94,17 +94,24 @@ export default function ExpensesPage() {
     );
   }
 
+  function withPlan(update: (p: Plan) => Plan) {
+    setPlan((prev) => (prev ? update(prev) : prev));
+  }
+
   function updateItem(id: string, patch: Partial<RecurringItem>) {
-    setPlan({
-      ...plan,
-      expenses: plan.expenses.map((it) =>
+    withPlan((prev) => ({
+      ...prev,
+      expenses: prev.expenses.map((it) =>
         it.id === id ? { ...it, ...patch } : it
       ),
-    });
+    }));
   }
 
   function removeItem(id: string) {
-    setPlan({ ...plan, expenses: plan.expenses.filter((it) => it.id !== id) });
+    withPlan((prev) => ({
+      ...prev,
+      expenses: prev.expenses.filter((it) => it.id !== id),
+    }));
   }
 
   function setForMonth(it: RecurringItem, amount: number) {
@@ -118,36 +125,36 @@ export default function ExpensesPage() {
   }
 
   function addRecurring() {
-    setPlan({
-      ...plan,
-      expenses: [...plan.expenses, newRecurringItem('expense')],
-    });
+    withPlan((prev) => ({
+      ...prev,
+      expenses: [...prev.expenses, newRecurringItem('expense')],
+    }));
   }
 
   function addOneTime() {
-    setPlan({
-      ...plan,
+    withPlan((prev) => ({
+      ...prev,
       oneTimeExpenses: [
-        ...plan.oneTimeExpenses,
+        ...(prev.oneTimeExpenses ?? []),
         newOneTimeItem('expense', editMonthISO),
       ],
-    });
+    }));
   }
 
   function updateOneTime(id: string, patch: any) {
-    setPlan({
-      ...plan,
-      oneTimeExpenses: plan.oneTimeExpenses.map((x) =>
+    withPlan((prev) => ({
+      ...prev,
+      oneTimeExpenses: (prev.oneTimeExpenses ?? []).map((x) =>
         x.id === id ? { ...x, ...patch } : x
       ),
-    });
+    }));
   }
 
   function removeOneTime(id: string) {
-    setPlan({
-      ...plan,
-      oneTimeExpenses: plan.oneTimeExpenses.filter((x) => x.id !== id),
-    });
+    withPlan((prev) => ({
+      ...prev,
+      oneTimeExpenses: (prev.oneTimeExpenses ?? []).filter((x) => x.id !== id),
+    }));
   }
 
   return (
@@ -276,7 +283,7 @@ export default function ExpensesPage() {
                     </div>
                     <select
                       className="w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-slate-900 outline-none dark:border-slate-800 dark:text-slate-100"
-                      value={it.endMonthISO || ''}
+                      value={it.endMonthISO ?? ''}
                       onChange={(e) =>
                         updateItem(it.id, {
                           endMonthISO: e.target.value || null,
@@ -358,7 +365,7 @@ export default function ExpensesPage() {
         </div>
 
         <div className="mt-4 space-y-3">
-          {plan.oneTimeExpenses.map((it) => (
+          {(plan.oneTimeExpenses ?? []).map((it) => (
             <div
               key={it.id}
               className="grid gap-3 rounded-2xl border border-slate-200 p-4 md:grid-cols-12 md:items-end dark:border-slate-800"
@@ -418,7 +425,7 @@ export default function ExpensesPage() {
             </div>
           ))}
 
-          {!plan.oneTimeExpenses.length ? (
+          {!(plan.oneTimeExpenses ?? []).length ? (
             <div className="text-sm text-slate-500 dark:text-slate-400">
               No one-time expense items.
             </div>
@@ -428,3 +435,4 @@ export default function ExpensesPage() {
     </div>
   );
 }
+
