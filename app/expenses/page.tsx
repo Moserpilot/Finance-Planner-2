@@ -135,7 +135,7 @@ export default function ExpensesPage() {
     withPlan((prev) => ({
       ...prev,
       oneTimeExpenses: [
-        ...prev.oneTimeExpenses,
+        ...(prev.oneTimeExpenses ?? []),
         newOneTimeItem('expense', editMonthISO),
       ],
     }));
@@ -144,7 +144,7 @@ export default function ExpensesPage() {
   function updateOneTime(id: string, patch: any) {
     withPlan((prev) => ({
       ...prev,
-      oneTimeExpenses: prev.oneTimeExpenses.map((x) =>
+      oneTimeExpenses: (prev.oneTimeExpenses ?? []).map((x) =>
         x.id === id ? { ...x, ...patch } : x
       ),
     }));
@@ -153,7 +153,7 @@ export default function ExpensesPage() {
   function removeOneTime(id: string) {
     withPlan((prev) => ({
       ...prev,
-      oneTimeExpenses: prev.oneTimeExpenses.filter((x) => x.id !== id),
+      oneTimeExpenses: (prev.oneTimeExpenses ?? []).filter((x) => x.id !== id),
     }));
   }
 
@@ -365,7 +365,7 @@ export default function ExpensesPage() {
         </div>
 
         <div className="mt-4 space-y-3">
-          {plan.oneTimeExpenses.map((it) => (
+          {(plan.oneTimeExpenses ?? []).map((it) => (
             <div
               key={it.id}
               className="grid gap-3 rounded-2xl border border-slate-200 p-4 md:grid-cols-12 md:items-end dark:border-slate-800"
@@ -425,7 +425,7 @@ export default function ExpensesPage() {
             </div>
           ))}
 
-          {!plan.oneTimeExpenses.length ? (
+          {!(plan.oneTimeExpenses ?? []).length ? (
             <div className="text-sm text-slate-500 dark:text-slate-400">
               No one-time expense items.
             </div>
@@ -435,3 +435,4 @@ export default function ExpensesPage() {
     </div>
   );
 }
+

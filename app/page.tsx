@@ -4,9 +4,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Plan } from './lib/store';
 import { loadPlan, savePlan } from './lib/store';
-import { buildNetWorthSeries, netWorthAsOf } from './lib/engine';
+import {
+  buildNetWorthSeries,
+  netWorthAsOf,
+  latestNetWorthSnapshotMonth,
+} from './lib/engine';
 import { NetWorthChart } from './components/NetWorthChart';
-import { AllocationPie } from './components/AllocationPie';
 
 function safeCurrency(code: string) {
   const c = (code || '').trim().toUpperCase();
@@ -41,108 +44,6 @@ function addMonthsISO(startISO: string, add: number) {
   const y = Math.floor(t / 12);
   const m = t % 12;
   return `${y}-${String(m + 1).padStart(2, '0')}`;
-}
-
-function monthFromEntry(entry: any): string | null {
-  const raw =
-    entry?.monthISO ?? entry?.month ?? entry?.asOfMonth ?? entry?.date;
-  const s = String(raw ?? '').trim();
-  return /^\d{4}-\d{2}$/.test(s) ? s : null;
-}
-
-function amountFromEntry(entry: any): number {
-  const candidates = [entry?.amount, entry?.balance, entry?.value];
-  for (const candidate of candidates) {
-    const n = Number(candidate);
-    if (Number.isFinite(n)) return n;
-  }
-  return 0;
-}
-
-function latestNetWorthFromAccounts(plan: Plan): {
-  netWorth: number;
-  monthISO: string | null;
-} {
-  const rows: { monthISO: string; amount: number }[] = [];
-
-  const accounts = Array.isArray(plan?.netWorthAccounts)
-    ? plan.netWorthAccounts
-    : [];
-  for (const acct of accounts) {
-    const balances = Array.isArray((acct as any)?.balances)
-      ? (acct as any).balances
-      : [];
-    for (const b of balances) {
-      const monthISO = monthFromEntry(b);
-      if (!monthISO) continue;
-      rows.push({ monthISO, amount: amountFromEntry(b) });
-    }
-  }
-
-  if (!rows.length) return { netWorth: 0, monthISO: null };
-
-  const latestMonth = rows.reduce(
-    (max, row) => (row.monthISO > max ? row.monthISO : max),
-    rows[0].monthISO
-  );
-  const total = rows
-    .filter((r) => r.monthISO === latestMonth)
-    .reduce((sum, r) => sum + r.amount, 0);
-  return { netWorth: total, monthISO: latestMonth };
-}
-
-function allocationFromLatestMonth(plan: Plan) {
-  const palette = {
-    Cash: '#0f172a',
-    Investments: '#2563eb',
-    Retirement: '#7c3aed',
-    RealEstate: '#0d9488',
-    Other: '#64748b',
-  };
-
-  const buckets = {
-    Cash: 0,
-    Investments: 0,
-    Retirement: 0,
-    RealEstate: 0,
-    Other: 0,
-  };
-
-  const latest = latestNetWorthFromAccounts(plan).monthISO;
-  if (!latest) return [];
-
-  const accounts = Array.isArray(plan?.netWorthAccounts)
-    ? plan.netWorthAccounts
-    : [];
-  for (const acct of accounts) {
-    const name = String((acct as any)?.name ?? '').toLowerCase();
-    const balances = Array.isArray((acct as any)?.balances)
-      ? (acct as any).balances
-      : [];
-    const monthRows = balances.filter((b: any) => monthFromEntry(b) === latest);
-    const amt = monthRows.reduce(
-      (sum: number, b: any) => sum + amountFromEntry(b),
-      0
-    );
-
-    if (/cash|check|saving|money market|mmkt|wallet/.test(name))
-      buckets.Cash += amt;
-    else if (/ira|401k|retire|pension|hsa/.test(name))
-      buckets.Retirement += amt;
-    else if (/real estate|property|home|house|rental|reit/.test(name))
-      buckets.RealEstate += amt;
-    else if (/broker|stock|invest|crypto|etf|fund/.test(name))
-      buckets.Investments += amt;
-    else buckets.Other += amt;
-  }
-
-  return (Object.keys(buckets) as Array<keyof typeof buckets>)
-    .map((k) => ({
-      label: k === 'RealEstate' ? 'Real Estate' : k,
-      value: buckets[k],
-      color: palette[k],
-    }))
-    .filter((s) => Math.abs(s.value) > 0.0001);
 }
 
 function ProgressRing({ pct }: { pct: number }) {
@@ -240,11 +141,11 @@ export default function DashboardPage() {
 
   const totals = useMemo(() => {
     if (!plan) return { inc: 0, exp: 0, net: 0 };
-    const inc = (Array.isArray(plan.income) ? plan.income : []).reduce(
+    const inc = (plan.income || []).reduce(
       (s, i) => s + (Number.isFinite(i.defaultAmount) ? i.defaultAmount : 0),
       0
     );
-    const exp = (Array.isArray(plan.expenses) ? plan.expenses : []).reduce(
+    const exp = (plan.expenses || []).reduce(
       (s, e) => s + (Number.isFinite(e.defaultAmount) ? e.defaultAmount : 0),
       0
     );
@@ -299,28 +200,21 @@ export default function DashboardPage() {
       ? 'Hypothetical projection'
       : 'Reality-anchored projection';
 
+  // Single source of truth: same balances structure as Net Worth page (plan.netWorthAccounts).
   const startMonth = plan.startMonthISO || '2026-01';
-  const latestActual = latestNetWorthFromAccounts(plan);
-  const projectionBaseline = netWorthAsOf(plan, startMonth);
-
-  const netWorthKpi =
-    plan.netWorthMode === 'projection'
-      ? projectionBaseline?.netWorth ?? 0
-      : latestActual.netWorth;
-
-  const netWorthSub =
-    plan.netWorthMode === 'projection'
-      ? `Mode: ${modeLabel} · Baseline: ${startMonth}`
-      : `Mode: ${modeLabel} · As of: ${latestActual.monthISO ?? '—'}`;
+  const latestSnap = latestNetWorthSnapshotMonth(plan);
+  const asOfMonth = plan.netWorthMode === 'projection' ? startMonth : (latestSnap ?? startMonth);
+  const netWorthKpi = netWorthAsOf(plan, asOfMonth)?.netWorth ?? 0;
+  const netWorthSub = `Mode: ${modeLabel} · As of: ${asOfMonth}`;
 
   const projectedNW = series.length
     ? series[series.length - 1].netWorth
     : netWorthKpi;
+
   const goal = Math.max(0, plan.goalNetWorth ?? 0);
+
   const curPct = goal > 0 ? clamp01(netWorthKpi / goal) : 0;
   const projPct = goal > 0 ? clamp01(projectedNW / goal) : 0;
-
-  const allocation = allocationFromLatestMonth(plan);
 
   return (
     <div className="space-y-6">
@@ -335,18 +229,26 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 md:grid-cols-5">
         <Kpi
-          label="Net Worth (investments)"
+          label="Net Worth (balances)"
           value={money(netWorthKpi, cur)}
           tone="neutral"
           sub={netWorthSub}
         />
-        <Kpi label="Monthly Income" value={money(totals.inc, cur)} tone="positive" />
+        <Kpi
+          label="Monthly Income"
+          value={money(totals.inc, cur)}
+          tone="positive"
+        />
         <Kpi
           label="Monthly Expenses"
           value={money(totals.exp, cur)}
           tone="negative"
         />
-        <Kpi label="Net Cash Flow" value={money(totals.net, cur)} tone={netTone} />
+        <Kpi
+          label="Net Cash Flow"
+          value={money(totals.net, cur)}
+          tone={netTone}
+        />
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between">
@@ -375,63 +277,56 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-12">
-        <div className="xl:col-span-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div className="px-2 pt-1">
-              <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                Net Worth Projection
-              </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                Window {windowMonths}m · Start {startISO}
-              </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div className="px-2 pt-1">
+            <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+              Net Worth Projection
             </div>
-
-            <div className="px-2">
-              <div className="inline-flex rounded-xl border border-slate-200 p-1 dark:border-slate-800">
-                {[6, 12, 24, 60].map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setWindowMonths(m)}
-                    className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
-                      windowMonths === m
-                        ? 'bg-blue-600/10 text-slate-900 dark:bg-blue-500/20 dark:text-slate-100'
-                        : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
-                    }`}
-                  >
-                    {m}m
-                  </button>
-                ))}
-              </div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              Window {windowMonths}m · Start {startISO}
             </div>
           </div>
 
-          <div className="mt-2 px-2">
-            <input
-              type="range"
-              min={0}
-              max={maxOffset}
-              value={effOffset}
-              onChange={(e) => setOffset(Number(e.target.value))}
-              className="w-full accent-blue-500"
-              aria-label="Scroll chart window"
-            />
-          </div>
-
-          <div className="mt-3 px-2">
-            <NetWorthChart
-              currency={cur}
-              series={windowed}
-              startMonthISO={startISO}
-              heightPx={660}
-              fixedWidthPx={1080}
-            />
+          <div className="px-2">
+            <div className="inline-flex rounded-xl border border-slate-200 p-1 dark:border-slate-800">
+              {[6, 12, 24, 60].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setWindowMonths(m)}
+                  className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+                    windowMonths === m
+                      ? 'bg-blue-600/10 text-slate-900 dark:bg-blue-500/20 dark:text-slate-100'
+                      : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+                  }`}
+                >
+                  {m}m
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="xl:col-span-4">
-          <AllocationPie title="Allocation by type" currency={cur} slices={allocation} />
+        <div className="mt-2 px-2">
+          <input
+            type="range"
+            min={0}
+            max={maxOffset}
+            value={effOffset}
+            onChange={(e) => setOffset(Number(e.target.value))}
+            className="w-full accent-blue-500"
+            aria-label="Scroll chart window"
+          />
+        </div>
+
+        <div className="mt-3 px-2">
+          <NetWorthChart
+            currency={cur}
+            series={windowed}
+            startMonthISO={startISO}
+            heightPx={760}
+          />
         </div>
       </div>
     </div>

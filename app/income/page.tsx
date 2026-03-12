@@ -135,7 +135,7 @@ export default function IncomePage() {
     withPlan((prev) => ({
       ...prev,
       oneTimeIncome: [
-        ...prev.oneTimeIncome,
+        ...(prev.oneTimeIncome ?? []),
         newOneTimeItem('income', editMonthISO),
       ],
     }));
@@ -144,7 +144,7 @@ export default function IncomePage() {
   function updateOneTime(id: string, patch: any) {
     withPlan((prev) => ({
       ...prev,
-      oneTimeIncome: prev.oneTimeIncome.map((x) =>
+      oneTimeIncome: (prev.oneTimeIncome ?? []).map((x) =>
         x.id === id ? { ...x, ...patch } : x
       ),
     }));
@@ -153,7 +153,7 @@ export default function IncomePage() {
   function removeOneTime(id: string) {
     withPlan((prev) => ({
       ...prev,
-      oneTimeIncome: prev.oneTimeIncome.filter((x) => x.id !== id),
+      oneTimeIncome: (prev.oneTimeIncome ?? []).filter((x) => x.id !== id),
     }));
   }
 
@@ -365,7 +365,7 @@ export default function IncomePage() {
         </div>
 
         <div className="mt-4 space-y-3">
-          {plan.oneTimeIncome.map((it) => (
+          {(plan.oneTimeIncome ?? []).map((it) => (
             <div
               key={it.id}
               className="grid gap-3 rounded-2xl border border-slate-200 p-4 md:grid-cols-12 md:items-end dark:border-slate-800"
@@ -425,7 +425,7 @@ export default function IncomePage() {
             </div>
           ))}
 
-          {!plan.oneTimeIncome.length ? (
+          {!(plan.oneTimeIncome ?? []).length ? (
             <div className="text-sm text-slate-500 dark:text-slate-400">
               No one-time income items.
             </div>
@@ -435,3 +435,4 @@ export default function IncomePage() {
     </div>
   );
 }
+
