@@ -1,14 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { Plan, RecurringItem } from '../lib/store';
-import {
-  loadPlan,
-  savePlan,
-  newRecurringItem,
-  newOneTimeItem,
-} from '../lib/store';
 import { amountForMonth } from '../lib/engine';
+import type { DatedAmount, Plan, RecurringItem } from '../lib/store';
+import { loadPlan, newOneTimeItem, newRecurringItem, savePlan } from '../lib/store';
 
 function safeCurrency(code: string) {
   const c = (code || '').trim().toUpperCase();
@@ -16,19 +11,11 @@ function safeCurrency(code: string) {
 }
 
 function money(n: number, currency: string) {
-  const cur = safeCurrency(currency);
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: cur,
+    currency: safeCurrency(currency),
     maximumFractionDigits: 0,
   }).format(Number.isFinite(n) ? n : 0);
-}
-
-function parseMoneyLoose(v: string) {
-  // allow "$1,234", "1234", "1,234.56"
-  const cleaned = String(v).replace(/[$,%\s,]+/g, '');
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : 0;
 }
 
 function addMonthsISO(startISO: string, add: number) {
@@ -41,388 +28,151 @@ function addMonthsISO(startISO: string, add: number) {
   return `${y}-${String(m + 1).padStart(2, '0')}`;
 }
 
-function buildMonthOptions(startMonthISO: string, months = 360) {
-  return Array.from({ length: months + 1 }, (_, i) =>
-    addMonthsISO(startMonthISO, i)
-  );
+function asNumber(v: string) {
+  const n = Number(String(v).replace(/[$,%\s,]+/g, ''));
+  return Number.isFinite(n) ? n : 0;
 }
 
-function upsertDated(
-  arr: { monthISO: string; amount: number }[],
-  monthISO: string,
-  amount: number
-) {
+function upsert(arr: DatedAmount[], monthISO: string, amount: number) {
   const next = [...arr];
-  const i = next.findIndex((x) => x.monthISO === monthISO);
-  if (i >= 0) next[i] = { monthISO, amount };
+  const idx = next.findIndex((x) => x.monthISO === monthISO);
+  if (idx >= 0) next[idx] = { monthISO, amount };
   else next.push({ monthISO, amount });
-  next.sort((a, b) =>
-    a.monthISO < b.monthISO ? -1 : a.monthISO > b.monthISO ? 1 : 0
-  );
+  next.sort((a, b) => (a.monthISO < b.monthISO ? -1 : 1));
   return next;
 }
 
 export default function ExpensesPage() {
   const [plan, setPlan] = useState<Plan | null>(null);
-
-  // Month selector for month-specific edits
-  const [editMonthISO, setEditMonthISO] = useState<string>('2026-01');
+  const [editMonth, setEditMonth] = useState('2026-01');
 
   useEffect(() => {
     const p = loadPlan();
     setPlan(p);
-    setEditMonthISO(p.startMonthISO || '2026-01');
+    setEditMonth(p.startMonthISO || '2026-01');
   }, []);
 
   useEffect(() => {
     if (plan) savePlan(plan);
   }, [plan]);
 
-  const cur = useMemo(
-    () => safeCurrency(plan?.currency || 'USD'),
-    [plan?.currency]
+  const cur = safeCurrency(plan?.currency || 'USD');
+
+  const monthOptions = useMemo(
+    () => Array.from({ length: 120 }, (_, i) => addMonthsISO(plan?.startMonthISO || '2026-01', i)),
+    [plan?.startMonthISO]
   );
 
-  const monthOptions = useMemo(() => {
-    const start = plan?.startMonthISO || '2026-01';
-    return buildMonthOptions(start, 360); // 30 years
-  }, [plan?.startMonthISO]);
+  if (!plan) return <div className="text-sm text-slate-500">Loading…</div>;
 
-  if (!plan) {
-    return (
-      <div className="text-sm text-slate-500 dark:text-slate-400">Loading…</div>
-    );
-  }
+  const recurringExpenseItems = plan.expenses || [];
+  const oneTimeExpenseItems = plan.oneTimeExpenses || [];
 
-  function updateItem(id: string, patch: Partial<RecurringItem>) {
-    setPlan({
-      ...plan,
-      expenses: plan.expenses.map((it) =>
-        it.id === id ? { ...it, ...patch } : it
-      ),
+  const updateRecurring = (id: string, patch: Partial<RecurringItem>) => {
+    setPlan((prev) => {
+      if (!prev) return prev;
+      return { ...prev, expenses: recurringExpenseItems.map((x) => (x.id === id ? { ...x, ...patch } : x)) };
     });
-  }
+  };
 
-  function removeItem(id: string) {
-    setPlan({ ...plan, expenses: plan.expenses.filter((it) => it.id !== id) });
-  }
-
-  function setForMonth(it: RecurringItem, amount: number) {
-    if (it.behavior === 'carryForward') {
-      const changes = upsertDated(it.changes || [], editMonthISO, amount);
-      updateItem(it.id, { changes });
+  const setMonthAmount = (item: RecurringItem, amount: number) => {
+    if (item.behavior === 'carryForward') {
+      updateRecurring(item.id, { changes: upsert(item.changes || [], editMonth, amount) });
     } else {
-      const overrides = upsertDated(it.overrides || [], editMonthISO, amount);
-      updateItem(it.id, { overrides });
+      updateRecurring(item.id, { overrides: upsert(item.overrides || [], editMonth, amount) });
     }
-  }
+  };
 
-  function addRecurring() {
-    setPlan({
-      ...plan,
-      expenses: [...plan.expenses, newRecurringItem('expense')],
-    });
-  }
+  const recurringTotal = recurringExpenseItems.reduce((s, it) => s + amountForMonth(it, editMonth), 0);
+  const oneTimeTotal = oneTimeExpenseItems.filter((x) => x.monthISO === editMonth).reduce((s, x) => s + x.amount, 0);
 
-  function addOneTime() {
-    setPlan({
-      ...plan,
-      oneTimeExpenses: [
-        ...plan.oneTimeExpenses,
-        newOneTimeItem('expense', editMonthISO),
-      ],
-    });
-  }
-
-  function updateOneTime(id: string, patch: any) {
-    setPlan({
-      ...plan,
-      oneTimeExpenses: plan.oneTimeExpenses.map((x) =>
-        x.id === id ? { ...x, ...patch } : x
-      ),
-    });
-  }
-
-  function removeOneTime(id: string) {
-    setPlan({
-      ...plan,
-      oneTimeExpenses: plan.oneTimeExpenses.filter((x) => x.id !== id),
-    });
-  }
+  const input = 'mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm dark:border-slate-700 dark:bg-slate-900';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-          Expenses
+        <h1 className="text-2xl font-semibold">Expenses</h1>
+        <p className="text-sm text-slate-500">Recurring and one-time expenses with month-based editing.</p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="rounded-2xl border border-slate-200 bg-white p-3 text-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="text-xs uppercase tracking-wide text-slate-500">Editing month</div>
+          <select value={editMonth} onChange={(e) => setEditMonth(e.target.value)} className={input}>
+            {monthOptions.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </label>
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+          <div className="text-xs uppercase tracking-wide text-slate-500">Recurring ({editMonth})</div>
+          <div className="mt-1 text-xl font-semibold text-rose-600">{money(recurringTotal, cur)}</div>
         </div>
-        <div className="text-sm text-slate-500 dark:text-slate-400">
-          Month selector controls overrides / effective changes (YYYY-MM).
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+          <div className="text-xs uppercase tracking-wide text-slate-500">One-time ({editMonth})</div>
+          <div className="mt-1 text-xl font-semibold text-rose-600">{money(oneTimeTotal, cur)}</div>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <label className="text-sm">
-            <div className="mb-1 text-slate-500 dark:text-slate-400">
-              Edit month
-            </div>
-            <input
-              className="rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-slate-900 outline-none dark:border-slate-800 dark:text-slate-100"
-              value={editMonthISO}
-              onChange={(e) => setEditMonthISO(e.target.value)}
-              placeholder="2026-01"
-            />
-          </label>
-
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={addRecurring}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm dark:border-slate-800"
-            >
-              Add recurring
-            </button>
-            <button
-              type="button"
-              onClick={addOneTime}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm dark:border-slate-800"
-            >
-              Add one-time
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Recurring expenses */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
-          Recurring expenses
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="mb-3 flex flex-wrap gap-2">
+          <button className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white" onClick={() => setPlan({ ...plan, expenses: [...recurringExpenseItems, newRecurringItem('expense')] })}>+ Recurring expense</button>
+          <button className="rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700" onClick={() => setPlan({ ...plan, oneTimeExpenses: [...oneTimeExpenseItems, newOneTimeItem('expense', editMonth)] })}>+ One-time expense</button>
         </div>
 
-        <div className="mt-4 space-y-4">
-          {plan.expenses.map((it) => {
-            const monthAmount = amountForMonth(it, editMonthISO);
-            const draftKey = `draft_${it.id}`;
+        <div className="mb-2 grid gap-2 text-xs font-medium uppercase tracking-wide text-slate-500 md:grid-cols-6">
+          <div>Name</div>
+          <div>Default amount ({cur})</div>
+          <div>Behavior</div>
+          <div>End month</div>
+          <div>Set amount for {editMonth}</div>
+          <div>Action</div>
+        </div>
 
+        <div className="space-y-3">
+          {recurringExpenseItems.map((item) => {
+            const monthAmt = amountForMonth(item, editMonth);
             return (
-              <div
-                key={it.id}
-                className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800"
-              >
-                <div className="grid gap-3 md:grid-cols-12 md:items-end">
-                  <label className="md:col-span-3 text-sm">
-                    <div className="mb-1 text-slate-500 dark:text-slate-400">
-                      Name
-                    </div>
-                    <input
-                      className="w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-slate-900 outline-none dark:border-slate-800 dark:text-slate-100"
-                      value={it.name}
-                      onChange={(e) =>
-                        updateItem(it.id, { name: e.target.value })
-                      }
-                    />
-                  </label>
-
-                  <label className="md:col-span-2 text-sm">
-                    <div className="mb-1 text-slate-500 dark:text-slate-400">
-                      Default amount ({cur})
-                    </div>
-                    <input
-                      type="text"
-                      className="w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-slate-900 outline-none dark:border-slate-800 dark:text-slate-100"
-                      defaultValue={money(it.defaultAmount, cur)}
-                      key={`def_${it.id}_${it.defaultAmount}_${cur}`}
-                      onBlur={(e) =>
-                        updateItem(it.id, {
-                          defaultAmount: parseMoneyLoose(e.target.value),
-                        })
-                      }
-                    />
-                  </label>
-
-                  <label className="md:col-span-3 text-sm">
-                    <div className="mb-1 text-slate-500 dark:text-slate-400">
-                      Behavior
-                    </div>
-                    <select
-                      className="w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-slate-900 outline-none dark:border-slate-800 dark:text-slate-100"
-                      value={it.behavior}
-                      onChange={(e) => {
-                        const behavior =
-                          e.target.value === 'monthOnly'
-                            ? 'monthOnly'
-                            : 'carryForward';
-                        updateItem(it.id, {
-                          behavior,
-                          changes:
-                            behavior === 'carryForward' ? it.changes || [] : [],
-                          overrides:
-                            behavior === 'monthOnly' ? it.overrides || [] : [],
-                        });
-                      }}
-                    >
-                      <option value="carryForward">
-                        Carry-forward (future changes)
-                      </option>
-                      <option value="monthOnly">Month-only (variable)</option>
-                    </select>
-                  </label>
-
-                  {/* End month */}
-                  <label className="md:col-span-3 text-sm">
-                    <div className="mb-1 text-slate-500 dark:text-slate-400">
-                      End month
-                    </div>
-                    <select
-                      className="w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-slate-900 outline-none dark:border-slate-800 dark:text-slate-100"
-                      value={it.endMonthISO || ''}
-                      onChange={(e) =>
-                        updateItem(it.id, {
-                          endMonthISO: e.target.value || null,
-                        })
-                      }
-                    >
-                      <option value="">No end</option>
-                      {monthOptions.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <div className="md:col-span-1 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => removeItem(it.id)}
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-rose-600 dark:border-slate-800"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-3 md:grid-cols-12 md:items-end">
-                  <div className="md:col-span-5 text-sm text-slate-500 dark:text-slate-400">
-                    Amount for{' '}
-                    <span className="font-medium text-slate-900 dark:text-slate-100">
-                      {editMonthISO}
-                    </span>
-                    :{' '}
-                    <span className="font-medium text-slate-900 dark:text-slate-100">
-                      {money(monthAmount, cur)}
-                    </span>
-                    <div className="mt-1 text-xs">
-                      {it.behavior === 'carryForward'
-                        ? 'Set amount for this month to apply to this month + all future months (until changed again).'
-                        : 'Set amount for this month only. Other months keep their own values or default.'}
-                      {it.endMonthISO ? ` Ends after ${it.endMonthISO}.` : ''}
-                    </div>
-                  </div>
-
-                  <label className="md:col-span-5 text-sm">
-                    <div className="mb-1 text-slate-500 dark:text-slate-400">
-                      Set amount for {editMonthISO} ({cur})
-                    </div>
-                    <input
-                      type="text"
-                      className="w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-slate-900 outline-none dark:border-slate-800 dark:text-slate-100"
-                      defaultValue={money(monthAmount, cur)}
-                      key={
-                        draftKey +
-                        editMonthISO +
-                        it.behavior +
-                        monthAmount +
-                        cur
-                      }
-                      onBlur={(e) => {
-                        const v = parseMoneyLoose(e.target.value);
-                        if (Number.isFinite(v)) setForMonth(it, v);
-                      }}
-                    />
-                  </label>
-
-                  <div className="md:col-span-2" />
+              <div key={item.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                <div className="grid gap-2 md:grid-cols-6">
+                  <input className={input} value={item.name} onChange={(e) => updateRecurring(item.id, { name: e.target.value })} />
+                  <input className={input} type="text" defaultValue={money(item.defaultAmount, cur)} key={`d_${item.id}_${item.defaultAmount}_${cur}`} onBlur={(e) => updateRecurring(item.id, { defaultAmount: asNumber(e.target.value) })} />
+                  <select className={input} value={item.behavior} onChange={(e) => updateRecurring(item.id, { behavior: e.target.value === 'monthOnly' ? 'monthOnly' : 'carryForward' })}>
+                    <option value="carryForward">Carry-forward</option>
+                    <option value="monthOnly">Month-only (variable)</option>
+                  </select>
+                  <select className={input} value={item.endMonthISO || ''} onChange={(e) => updateRecurring(item.id, { endMonthISO: e.target.value || null })}>
+                    <option value="">No end</option>
+                    {monthOptions.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                  <input className={input} type="text" defaultValue={money(monthAmt, cur)} key={`m_${item.id}_${editMonth}_${monthAmt}_${cur}`} onBlur={(e) => setMonthAmount(item, asNumber(e.target.value))} />
+                  <button className="rounded-lg border border-rose-200 px-2 py-2 text-rose-600" onClick={() => setPlan({ ...plan, expenses: recurringExpenseItems.filter((x) => x.id !== item.id) })}>Remove</button>
                 </div>
               </div>
             );
           })}
+          {!recurringExpenseItems.length ? <div className="text-sm text-slate-500">No recurring expenses yet.</div> : null}
         </div>
       </div>
 
-      {/* One-time expenses */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
-          One-time expenses
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="text-sm font-medium">One-time expenses</div>
+        <div className="mb-2 mt-2 grid gap-2 text-xs font-medium uppercase tracking-wide text-slate-500 md:grid-cols-4">
+          <div>Name</div>
+          <div>Month</div>
+          <div>Amount ({cur})</div>
+          <div>Action</div>
         </div>
-
-        <div className="mt-4 space-y-3">
-          {plan.oneTimeExpenses.map((it) => (
-            <div
-              key={it.id}
-              className="grid gap-3 rounded-2xl border border-slate-200 p-4 md:grid-cols-12 md:items-end dark:border-slate-800"
-            >
-              <label className="md:col-span-5 text-sm">
-                <div className="mb-1 text-slate-500 dark:text-slate-400">
-                  Name
-                </div>
-                <input
-                  className="w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-slate-900 outline-none dark:border-slate-800 dark:text-slate-100"
-                  value={it.name}
-                  onChange={(e) =>
-                    updateOneTime(it.id, { name: e.target.value })
-                  }
-                />
-              </label>
-
-              <label className="md:col-span-3 text-sm">
-                <div className="mb-1 text-slate-500 dark:text-slate-400">
-                  Month (YYYY-MM)
-                </div>
-                <input
-                  className="w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-slate-900 outline-none dark:border-slate-800 dark:text-slate-100"
-                  value={it.monthISO}
-                  onChange={(e) =>
-                    updateOneTime(it.id, { monthISO: e.target.value })
-                  }
-                />
-              </label>
-
-              <label className="md:col-span-3 text-sm">
-                <div className="mb-1 text-slate-500 dark:text-slate-400">
-                  Amount ({cur})
-                </div>
-                <input
-                  type="text"
-                  className="w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-slate-900 outline-none dark:border-slate-800 dark:text-slate-100"
-                  defaultValue={money(it.amount, cur)}
-                  key={`ot_${it.id}_${it.amount}_${cur}`}
-                  onBlur={(e) =>
-                    updateOneTime(it.id, {
-                      amount: parseMoneyLoose(e.target.value),
-                    })
-                  }
-                />
-              </label>
-
-              <div className="md:col-span-1 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => removeOneTime(it.id)}
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-rose-600 dark:border-slate-800"
-                >
-                  ✕
-                </button>
-              </div>
+        <div className="space-y-2">
+          {oneTimeExpenseItems.map((item) => (
+            <div key={item.id} className="grid gap-2 md:grid-cols-4">
+              <input className={input} value={item.name} onChange={(e) => setPlan({ ...plan, oneTimeExpenses: oneTimeExpenseItems.map((x) => (x.id === item.id ? { ...x, name: e.target.value } : x)) })} />
+              <select className={input} value={item.monthISO} onChange={(e) => setPlan({ ...plan, oneTimeExpenses: oneTimeExpenseItems.map((x) => (x.id === item.id ? { ...x, monthISO: e.target.value } : x)) })}>
+                {monthOptions.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <input className={input} type="text" defaultValue={money(item.amount, cur)} key={`ot_${item.id}_${item.amount}_${cur}`} onBlur={(e) => setPlan({ ...plan, oneTimeExpenses: oneTimeExpenseItems.map((x) => (x.id === item.id ? { ...x, amount: asNumber(e.target.value) } : x)) })} />
+              <button className="rounded-lg border border-rose-200 px-2 py-2 text-rose-600" onClick={() => setPlan({ ...plan, oneTimeExpenses: oneTimeExpenseItems.filter((x) => x.id !== item.id) })}>Remove</button>
             </div>
           ))}
-
-          {!plan.oneTimeExpenses.length ? (
-            <div className="text-sm text-slate-500 dark:text-slate-400">
-              No one-time expense items.
-            </div>
-          ) : null}
+          {!oneTimeExpenseItems.length ? <div className="text-sm text-slate-500">No one-time expense items yet.</div> : null}
         </div>
       </div>
     </div>

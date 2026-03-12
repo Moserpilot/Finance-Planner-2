@@ -4,6 +4,7 @@
 import './globals.css';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { SidebarAssumptions } from './components/SidebarAssumptions';
 
 function NavLink({
   href,
@@ -50,22 +51,15 @@ export default function RootLayout({
 
               <nav className="space-y-1">
                 <NavLink href="/" label="Dashboard" active={pathname === '/'} />
-                <NavLink
-                  href="/income"
-                  label="Income"
-                  active={pathname.startsWith('/income')}
-                />
-                <NavLink
-                  href="/expenses"
-                  label="Expenses"
-                  active={pathname.startsWith('/expenses')}
-                />
-                <NavLink
-                  href="/assumptions"
-                  label="Assumptions"
-                  active={pathname.startsWith('/assumptions')}
-                />
+                <NavLink href="/income" label="Income" active={pathname.startsWith('/income')} />
+                <NavLink href="/expenses" label="Expenses" active={pathname.startsWith('/expenses')} />
+                <NavLink href="/cashflow" label="Cashflow" active={pathname.startsWith('/cashflow')} />
+                <NavLink href="/net-worth" label="Net Worth" active={pathname.startsWith('/net-worth')} />
+                <NavLink href="/settings" label="Settings" active={pathname.startsWith('/settings')} />
+                <NavLink href="/assumptions" label="Assumptions" active={pathname.startsWith('/assumptions')} />
               </nav>
+
+              <SidebarAssumptions />
             </div>
           </aside>
 

@@ -118,7 +118,11 @@ export function loadPlan(): Plan {
 
 export function savePlan(plan: Plan) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(plan));
+  const nextRaw = JSON.stringify(plan);
+  const prevRaw = localStorage.getItem(STORAGE_KEY);
+  if (prevRaw === nextRaw) return;
+  localStorage.setItem(STORAGE_KEY, nextRaw);
+  window.dispatchEvent(new Event('finance-plan-updated'));
 }
 
 export function newNetWorthAccount(name = 'New account'): NetWorthAccount {

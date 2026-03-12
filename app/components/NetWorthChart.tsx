@@ -1,4 +1,4 @@
-// app/components/NetWorthChart.tsx
+﻿// app/components/NetWorthChart.tsx
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -84,13 +84,11 @@ export function NetWorthChart({
   series,
   startMonthISO,
   heightPx = 700,
-  fixedWidthPx = 1500,
 }: {
   currency: string;
   series: SeriesPoint[];
   startMonthISO: string;
   heightPx?: number;
-  fixedWidthPx?: number;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -124,12 +122,8 @@ export function NetWorthChart({
   }, []);
 
   const chart = useMemo(() => {
-    // If the wrapper is narrow (phone), render at wrapper width instead of forcing a 1500px canvas.
-    // On desktop, keep the wide canvas for nicer detail (and horizontal scroll if desired).
-    const w = Math.max(
-      320,
-      Math.min(fixedWidthPx, Math.max(wrapWidth || 0, 320))
-    );
+    // Always fill the available container width so there is no empty right-side gap.
+    const w = Math.max(320, wrapWidth || 0);
     const h = Math.max(360, heightPx - 48);
 
     // Pad tuned to preserve your current look; slightly tighter on narrow widths.
@@ -256,7 +250,7 @@ export function NetWorthChart({
         : fmtMoney0;
 
     return { w, h, pad, pts, lineD, areaD, xTicks, yTicks, yFmt, x0, x1 };
-  }, [series, fixedWidthPx, heightPx, wrapWidth]);
+  }, [series, heightPx, wrapWidth]);
 
   function updateHoverFromClientX(clientX: number) {
     if (!wrapRef.current || chart.pts.length === 0) return;

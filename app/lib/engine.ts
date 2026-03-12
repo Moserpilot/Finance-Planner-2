@@ -47,8 +47,19 @@ export function accountBalanceForMonth(
   acct: NetWorthAccount,
   monthISO: string
 ): number {
-  const hit = (acct.balances || []).find((x) => x.monthISO === monthISO);
-  return hit && Number.isFinite(hit.amount) ? hit.amount : 0;
+  const rows = (acct.balances || [])
+    .filter(
+      (x) =>
+        x && typeof x.monthISO === 'string' && /^\d{4}-\d{2}$/.test(x.monthISO)
+    )
+    .sort((a, b) => compareISO(a.monthISO, b.monthISO));
+
+  let latest = 0;
+  for (const row of rows) {
+    if (row.monthISO > monthISO) break;
+    if (Number.isFinite(row.amount)) latest = row.amount;
+  }
+  return latest;
 }
 
 export function netWorthForMonth(plan: Plan, monthISO: string): number {
