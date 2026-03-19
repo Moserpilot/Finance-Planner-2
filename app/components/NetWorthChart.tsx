@@ -13,8 +13,8 @@ export function NetWorthChart({currency,series,startMonthISO,heightPx=500}:{curr
   const[mounted,setMounted]=useState(false);
   const[hoverPct,setHoverPct]=useState<number|null>(null);
   useEffect(()=>{setMounted(true);},[]);
-  const VW=800,VH=460;
-  const pad={l:110,r:30,t:20,b:70};
+  const VW=1200,VH=460;
+  const pad={l:90,r:20,t:20,b:55};
   const chart=useMemo(()=>{
     const vals=series.map(p=>p.netWorth);
     const mn=vals.length?Math.min(...vals):0;
@@ -62,7 +62,7 @@ export function NetWorthChart({currency,series,startMonthISO,heightPx=500}:{curr
         {hover?<div>{lbl(startMonthISO,hover.mi)} Â· <span className='font-semibold text-slate-900 dark:text-slate-100'>{fmt0(hover.v,currency)}</span></div>:<div className='opacity-50 italic'>Hover for details</div>}
       </div>
       <div className='w-full' style={{height:heightPx-24}}>
-        <svg viewBox={'0 0 '+VW+' '+VH} width='100%' height='100%' preserveAspectRatio='xMidYMid meet' className='block text-blue-500 dark:text-blue-400' onPointerMove={onPointer} onPointerDown={onPointer} onPointerLeave={()=>setHoverPct(null)} style={{touchAction:'none'}}>
+        <svg viewBox={'0 0 '+VW+' '+VH} width='100%' height='100%' preserveAspectRatio='none' className='block text-blue-500 dark:text-blue-400' onPointerMove={onPointer} onPointerDown={onPointer} onPointerLeave={()=>setHoverPct(null)} style={{touchAction:'none'}}>
           <defs><linearGradient id='grad' x1='0' x2='0' y1='0' y2='1'><stop offset='0%' stopColor='currentColor' stopOpacity='0.2'/><stop offset='100%' stopColor='currentColor' stopOpacity='0.02'/></linearGradient><filter id='glow' x='-20%' y='-20%' width='140%' height='140%'><feDropShadow dx='0' dy='2' stdDeviation='4' floodColor='currentColor' floodOpacity='0.25'/></filter></defs>
           {chart.yTicks.map((t,i)=>(<g key={i}><line x1={pad.l} x2={VW-pad.r} y1={t.y} y2={t.y} stroke={ax} opacity={0.1}/><text x={pad.l-8} y={t.y+5} textAnchor='end' fontSize='13' fill={ax} opacity={0.85}>{chart.yFmt(t.v,currency)}</text></g>))}
           {chart.xTicks.map((t,i)=>(<g key={i}><text x={t.x} y={VH-pad.b+22} textAnchor='middle' fontSize='13' fill={ax} opacity={t.m%12===0?0.9:0.65}>{lbl(startMonthISO,t.m)}</text></g>))}
