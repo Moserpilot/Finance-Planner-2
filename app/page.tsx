@@ -84,7 +84,7 @@ export default function DashboardPage() {
     setPlan(loadPlan());
   }, []);
 
-  // Listen for plan updates from other pages ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â reload but do NOT save
+  // Listen for plan updates from other pages — reload but do NOT save
   useEffect(() => {
     function onPlanUpdate() { setPlan(loadPlan()); }
     window.addEventListener('finance_planner_plan_updated', onPlanUpdate);
@@ -130,7 +130,7 @@ export default function DashboardPage() {
   }, [series, effOffset, windowMonths]);
 
   if (!plan) {
-    return <div className="text-sm text-slate-500 dark:text-slate-400">LoadingÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦</div>;
+    return <div className="text-sm text-slate-500 dark:text-slate-400">Loading...</div>;
   }
 
   const netTone: 'positive' | 'negative' = totals.net >= 0 ? 'positive' : 'negative';
