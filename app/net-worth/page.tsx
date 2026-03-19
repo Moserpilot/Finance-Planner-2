@@ -36,10 +36,6 @@ export default function NetWorthPage() {
     plan.netWorthViewMonthISO || plan.startMonthISO || '2026-01'
   );
 
-  useEffect(() => {
-    savePlan(plan);
-  }, [plan]);
-
   function update(p: Plan) { setPlan(p); savePlan(p); }
   const currency = plan.currency || 'USD';
 
