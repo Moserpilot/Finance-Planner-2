@@ -10,7 +10,7 @@ export default function AssumptionsPage(){
   const[plan,setPlan]=useState<Plan|null>(null);
   const[goalDraft,setGoalDraft]=useState('');
   const[retDraft,setRetDraft]=useState('');
-  useEffect(()=>{const p=loadPlan();setPlan(p);setGoalDraft(String(p.goalNetWorth??0));setRetDraft(String(p.expectedReturnPct??5));},[]);
+  useEffect(()=>{const p=loadPlan();setPlan(p);setGoalDraft(new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(p.goalNetWorth??0));setRetDraft((p.expectedReturnPct??5)+'%');},[]);
   function save(p:Plan){setPlan(p);savePlan(p);}
   function update(patch:Partial<Plan>){if(!plan)return;save({...plan,...patch});}
   const cur=useMemo(()=>safeCurrency(plan?.currency||'USD'),[plan?.currency]);
@@ -29,8 +29,8 @@ export default function AssumptionsPage(){
         <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>
           <label><div className='text-xs font-medium text-slate-500'>Currency</div><input className={inp} value={plan.currency} onChange={e=>update({currency:e.target.value})} placeholder='USD'/></label>
           <label><div className='text-xs font-medium text-slate-500'>Start month (YYYY-MM)</div><input className={inp} value={plan.startMonthISO} onChange={e=>update({startMonthISO:e.target.value})} placeholder='2026-01'/></label>
-          <label><div className='text-xs font-medium text-slate-500'>Goal net worth ({cur})</div><input className={inp} value={goalDraft} onChange={e=>setGoalDraft(e.target.value)} onBlur={()=>{const v=parseNum(goalDraft);update({goalNetWorth:v});setGoalDraft(String(v));}}/></label>
-          <label><div className='text-xs font-medium text-slate-500'>Expected return (annual)</div><div className='mt-1 flex items-center rounded-xl border border-slate-200 bg-white shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-200 dark:border-slate-800 dark:bg-slate-900'><input className='w-full bg-transparent px-3 py-2 text-sm text-slate-900 outline-none dark:text-slate-100' value={retDraft} onChange={e=>setRetDraft(e.target.value)} onBlur={()=>{const v=parseNum(retDraft);update({expectedReturnPct:v});setRetDraft(String(v));}}/><span className='pr-3 text-sm text-slate-500'>%</span></div></label>
+          <label><div className='text-xs font-medium text-slate-500'>Goal net worth ({cur})</div><input className={inp} value={goalDraft} onChange={e=>setGoalDraft(e.target.value)} onBlur={()=>{const v=parseNum(goalDraft);update({goalNetWorth:v});setGoalDraft(new Intl.NumberFormat('en-US',{style:'currency',currency:cur,maximumFractionDigits:0}).format(v));}}/></label>
+          <label><div className='text-xs font-medium text-slate-500'>Expected return (annual)</div><div className='mt-1 flex items-center rounded-xl border border-slate-200 bg-white shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-200 dark:border-slate-800 dark:bg-slate-900'><input className='w-full bg-transparent px-3 py-2 text-sm text-slate-900 outline-none dark:text-slate-100' value={retDraft} onChange={e=>setRetDraft(e.target.value)} onBlur={()=>{const v=parseNum(retDraft);update({expectedReturnPct:v});setRetDraft(v+'%');}}/><span className='pr-3 text-sm text-slate-500'>%</span></div></label>
         </div>
         <div className='mt-5 grid gap-4 md:grid-cols-2'>
           <div>
