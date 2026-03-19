@@ -1,5 +1,3 @@
-// app/lib/store.ts
-
 export type DatedAmount = { monthISO: string; amount: number };
 
 export type RecurringItem = {
@@ -35,69 +33,66 @@ export type NetWorthMode = 'snapshot' | 'projection' | 'hybrid';
 export type Plan = {
   currency: string;
   startMonthISO: string;
-  netWorthViewMonthISO?: string;
+  netWorthViewMonthISO: string;
   startingNetWorth?: number;
   goalNetWorth: number;
   expectedReturnPct: number;
-
   income: RecurringItem[];
   expenses: RecurringItem[];
   oneTimeIncome: OneTimeItem[];
   oneTimeExpenses: OneTimeItem[];
-
   netWorthAccounts: NetWorthAccount[];
   netWorthMode: NetWorthMode;
 };
 
 const STORAGE_KEY = 'finance_planner_plan_v2';
 
-const DEFAULT_PLAN: Plan = {
-  currency: 'USD',
-  startMonthISO: '2026-01',
-  netWorthViewMonthISO: '2026-01',
-  startingNetWorth: 0,
-  goalNetWorth: 0,
-  expectedReturnPct: 5,
-  income: [],
-  expenses: [],
-  oneTimeIncome: [],
-  oneTimeExpenses: [],
-  netWorthAccounts: [
-    { id: 'acct_checking', name: 'Checking', type: 'cash', balances: [] },
-    { id: 'acct_taxable', name: 'Brokerage', type: 'taxable', balances: [] },
-    { id: 'acct_roth', name: 'Roth IRA', type: 'retirement', balances: [] },
-  ],
-  netWorthMode: 'hybrid',
-};
+export function createDefaultPlan(): Plan {
+  return {
+    currency: 'USD',
+    startMonthISO: '2026-01',
+    netWorthViewMonthISO: '2026-01',
+    startingNetWorth: 0,
+    goalNetWorth: 0,
+    expectedReturnPct: 5,
+    income: [],
+    expenses: [],
+    oneTimeIncome: [],
+    oneTimeExpenses: [],
+    netWorthAccounts: [
+      { id: 'acct_checking', name: 'Checking', type: 'cash', balances: [] },
+      { id: 'acct_brokerage', name: 'Brokerage', type: 'taxable', balances: [] },
+      { id: 'acct_roth', name: 'Roth IRA', type: 'retirement', balances: [] },
+    ],
+    netWorthMode: 'hybrid',
+  };
+}
+
+function uid(): string {
+  try {
+    const c = (globalThis as any).crypto;
+    if (c && typeof c.randomUUID === 'function') return c.randomUUID();
+  } catch { }
+  return `id_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+}
+
+function normalizeAccountType(v: unknown): NetWorthAccountType {
+  return v === 'cash' || v === 'taxable' || v === 'retirement' || v === 'other' ? v : 'taxable';
+}
 
 function ensureArray<T>(v: unknown): T[] {
   return Array.isArray(v) ? (v as T[]) : [];
 }
 
-function uid() {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const c: any = (globalThis as any).crypto;
-    if (c && typeof c.randomUUID === 'function') return c.randomUUID();
-  } catch {
-    // fall through to random id
-  }
-  return `id_${Math.random().toString(16).slice(2)}_${Date.now()}`;
-}
-
-function normalizeAccountType(v: unknown): NetWorthAccountType {
-  return v === 'cash' || v === 'taxable' || v === 'retirement' || v === 'other'
-    ? v
-    : 'taxable';
-}
-
-function ensureNetWorthAccounts(v: unknown): NetWorthAccount[] {
-  const arr = ensureArray<Record<string, unknown>>(v);
-  return arr.map((a) => ({
+function normalizeAccounts(v: unknown): NetWorthAccount[] {
+  return ensureArray<Record<string, unknown>>(v).map((a) => ({
     id: String(a?.id ?? uid()),
     name: String(a?.name ?? 'Account'),
     type: normalizeAccountType(a?.type),
-    balances: ensureArray<DatedAmount>(a?.balances),
+    balances: ensureArray<DatedAmount>(a?.balances).map((b) => ({
+      monthISO: String((b as any)?.monthISO ?? (b as any)?.month ?? ''),
+      amount: Number((b as any)?.amount ?? (b as any)?.balance ?? 0),
+    })).filter((b) => /^\d{4}-\d{2}$/.test(b.monthISO) && Number.isFinite(b.amount)),
   }));
 }
 
@@ -105,35 +100,49 @@ function normalizeMode(v: unknown): NetWorthMode {
   return v === 'snapshot' || v === 'projection' || v === 'hybrid' ? v : 'hybrid';
 }
 
+function ensureString(v: unknown, fallback: string): string {
+  return typeof v === 'string' && v.trim() ? v.trim() : fallback;
+}
+
+function ensureNumber(v: unknown, fallback: number): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export function loadPlan(): Plan {
-  if (typeof window === 'undefined') return DEFAULT_PLAN;
+  const defaults = createDefaultPlan();
+  if (typeof window === 'undefined') return defaults;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_PLAN;
-
-    const parsed = (JSON.parse(raw) ?? {}) as Partial<Plan>;
+    if (!raw) return defaults;
+    const p = JSON.parse(raw) ?? {};
+    const startMonthISO = ensureString(p.startMonthISO, defaults.startMonthISO);
     return {
-      ...DEFAULT_PLAN,
-      ...parsed,
+      currency: ensureString(p.currency, defaults.currency),
+      startMonthISO,
       netWorthViewMonthISO:
-        typeof parsed.netWorthViewMonthISO === 'string' && /^\d{4}-\d{2}$/.test(parsed.netWorthViewMonthISO)
-          ? parsed.netWorthViewMonthISO
-          : (parsed.startMonthISO || DEFAULT_PLAN.startMonthISO),
-      income: ensureArray(parsed.income),
-      expenses: ensureArray(parsed.expenses),
-      oneTimeIncome: ensureArray(parsed.oneTimeIncome),
-      oneTimeExpenses: ensureArray(parsed.oneTimeExpenses),
-      netWorthAccounts: ensureNetWorthAccounts(parsed.netWorthAccounts),
-      netWorthMode: normalizeMode(parsed.netWorthMode),
+        typeof p.netWorthViewMonthISO === 'string' && /^\d{4}-\d{2}$/.test(p.netWorthViewMonthISO)
+          ? p.netWorthViewMonthISO
+          : startMonthISO,
+      startingNetWorth: ensureNumber(p.startingNetWorth, 0),
+      goalNetWorth: ensureNumber(p.goalNetWorth, 0),
+      expectedReturnPct: ensureNumber(p.expectedReturnPct, 5),
+      income: ensureArray(p.income),
+      expenses: ensureArray(p.expenses),
+      oneTimeIncome: ensureArray(p.oneTimeIncome),
+      oneTimeExpenses: ensureArray(p.oneTimeExpenses),
+      netWorthAccounts: normalizeAccounts(p.netWorthAccounts),
+      netWorthMode: normalizeMode(p.netWorthMode),
     };
   } catch {
-    return DEFAULT_PLAN;
+    return defaults;
   }
 }
 
-export function savePlan(plan: Plan) {
+export function savePlan(plan: Plan): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(plan));
+  window.dispatchEvent(new Event('finance_planner_plan_updated'));
 }
 
 export function newNetWorthAccount(name = 'New account'): NetWorthAccount {
@@ -154,7 +163,7 @@ export function newRecurringItem(kind: 'income' | 'expense'): RecurringItem {
 }
 
 export function newOneTimeItem(kind: 'income' | 'expense', monthISO: string): OneTimeItem {
-  const m = /^\d{4}-\d{2}$/.test(monthISO) ? monthISO : DEFAULT_PLAN.startMonthISO;
+  const m = /^\d{4}-\d{2}$/.test(monthISO) ? monthISO : '2026-01';
   return {
     id: uid(),
     kind,
