@@ -40,6 +40,7 @@ export default function NetWorthPage() {
     savePlan(plan);
   }, [plan]);
 
+  function update(p: Plan) { setPlan(p); savePlan(p); }
   const currency = plan.currency || 'USD';
 
   const slices = useMemo(() => {
@@ -64,7 +65,7 @@ export default function NetWorthPage() {
                 onChange={(e) => {
                   const monthISO = e.target.value;
                   setEditMonthISO(monthISO);
-                  setPlan((prev) => ({ ...prev, netWorthViewMonthISO: monthISO }));
+                  setPlan((prev) => { const updated = { ...prev, netWorthViewMonthISO: monthISO }; savePlan(updated); return updated; });
                 }}
               />
             </label>
