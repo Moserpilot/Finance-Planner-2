@@ -1,21 +1,17 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AllocationPie } from './AllocationPie';
 import { buildAllocation } from '../lib/allocation';
 import type { Plan } from '../lib/store';
 import { loadPlan, savePlan } from '../lib/store';
 
 function formatMoney(n: number, currency: string): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency', currency, maximumFractionDigits: 0,
-  }).format(Number.isFinite(n) ? n : 0);
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(Number.isFinite(n) ? n : 0);
 }
-
 function parseMoney(v: string): number {
   const n = Number(String(v).replace(/[$,\s]+/g, ''));
   return Number.isFinite(n) ? n : 0;
 }
-
 function parsePct(v: string): number {
   const n = Number(String(v).replace(/[%\s]+/g, ''));
   return Number.isFinite(n) ? n : 0;
@@ -26,16 +22,14 @@ export function SidebarAssumptions() {
   const [goalDraft, setGoalDraft] = useState('');
   const [returnDraft, setReturnDraft] = useState('');
 
-  function reload() {
+  const reload = useCallback(() => {
     const p = loadPlan();
     setPlan(p);
     setGoalDraft(formatMoney(p.goalNetWorth ?? 0, p.currency || 'USD'));
     setReturnDraft(`${p.expectedReturnPct ?? 5}%`);
-  }
-
-  useEffect(() => {
-    reload();
   }, []);
+
+  useEffect(() => { reload(); }, [reload]);
 
   useEffect(() => {
     window.addEventListener('finance_planner_plan_updated', reload);
@@ -44,7 +38,7 @@ export function SidebarAssumptions() {
       window.removeEventListener('finance_planner_plan_updated', reload);
       window.removeEventListener('storage', reload);
     };
-  }, []);
+  }, [reload]);
 
   const currency = plan?.currency || 'USD';
   const asOfMonth = plan?.netWorthViewMonthISO || plan?.startMonthISO || '2026-01';
@@ -67,10 +61,7 @@ export function SidebarAssumptions() {
   return (
     <div className="mt-6 space-y-3">
       <div className="rounded-2xl border border-slate-200 bg-white/70 p-3 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-white/[0.04]">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-          Quick assumptions
-        </div>
-
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Quick assumptions</div>
         <label className="mt-3 block text-xs text-slate-500 dark:text-slate-400">
           Goal net worth
           <input
@@ -87,7 +78,6 @@ export function SidebarAssumptions() {
             }}
           />
         </label>
-
         <label className="mt-3 block text-xs text-slate-500 dark:text-slate-400">
           Expected return
           <input
@@ -105,7 +95,6 @@ export function SidebarAssumptions() {
           />
         </label>
       </div>
-
       <AllocationPie slices={slices} currency={currency} title={`Allocation (${asOfMonth})`} />
     </div>
   );

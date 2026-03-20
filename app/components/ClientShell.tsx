@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { SidebarAssumptions } from "./SidebarAssumptions";
 
@@ -38,6 +39,8 @@ function TabItem({ href, label, active, icon }: { href: string; label: string; a
 
 export function ClientShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/";
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   const isMore = pathname.startsWith("/assumptions") || pathname.startsWith("/cashflow") || pathname.startsWith("/settings");
   return (
     <div className="flex min-h-screen">
@@ -47,13 +50,13 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
             <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Finance Planner</div>
           </div>
           <nav className="space-y-0.5">
-            <NavLink href="/" label="Dashboard" active={pathname==="/"} />
-            <NavLink href="/income" label="Income" active={pathname.startsWith("/income")} />
-            <NavLink href="/expenses" label="Expenses" active={pathname.startsWith("/expenses")} />
-            <NavLink href="/net-worth" label="Net Worth" active={pathname.startsWith("/net-worth")} />
-            <NavLink href="/assumptions" label="Assumptions" active={pathname.startsWith("/assumptions")} />
-            <NavLink href="/cashflow" label="Cashflow" active={pathname.startsWith("/cashflow")} />
-            <NavLink href="/settings" label="Settings" active={pathname.startsWith("/settings")} />
+            <NavLink href="/" label="Dashboard" active={mounted && pathname==="/"} />
+            <NavLink href="/income" label="Income" active={mounted && pathname.startsWith("/income")} />
+            <NavLink href="/expenses" label="Expenses" active={mounted && pathname.startsWith("/expenses")} />
+            <NavLink href="/net-worth" label="Net Worth" active={mounted && pathname.startsWith("/net-worth")} />
+            <NavLink href="/assumptions" label="Assumptions" active={mounted && pathname.startsWith("/assumptions")} />
+            <NavLink href="/cashflow" label="Cashflow" active={mounted && pathname.startsWith("/cashflow")} />
+            <NavLink href="/settings" label="Settings" active={mounted && pathname.startsWith("/settings")} />
           </nav>
           <SidebarAssumptions />
         </div>
@@ -64,13 +67,15 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         </header>
         <main className="flex-1 px-4 py-4 md:px-6 md:py-6 pb-24 md:pb-6">{children}</main>
       </div>
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-black/90" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <TabItem href="/" label="Dashboard" active={pathname==="/"} icon={<IconDashboard active={pathname==="/"} />} />
-        <TabItem href="/income" label="Income" active={pathname.startsWith("/income")} icon={<IconIncome active={pathname.startsWith("/income")} />} />
-        <TabItem href="/expenses" label="Expenses" active={pathname.startsWith("/expenses")} icon={<IconExpenses active={pathname.startsWith("/expenses")} />} />
-        <TabItem href="/net-worth" label="Net Worth" active={pathname.startsWith("/net-worth")} icon={<IconNetWorth active={pathname.startsWith("/net-worth")} />} />
-        <TabItem href="/settings" label="More" active={isMore} icon={<IconMore active={isMore} />} />
-      </nav>
+      {mounted && (
+        <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-black/90" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+          <TabItem href="/" label="Dashboard" active={pathname==="/"} icon={<IconDashboard active={pathname==="/"} />} />
+          <TabItem href="/income" label="Income" active={pathname.startsWith("/income")} icon={<IconIncome active={pathname.startsWith("/income")} />} />
+          <TabItem href="/expenses" label="Expenses" active={pathname.startsWith("/expenses")} icon={<IconExpenses active={pathname.startsWith("/expenses")} />} />
+          <TabItem href="/net-worth" label="Net Worth" active={pathname.startsWith("/net-worth")} icon={<IconNetWorth active={pathname.startsWith("/net-worth")} />} />
+          <TabItem href="/settings" label="More" active={isMore} icon={<IconMore active={isMore} />} />
+        </nav>
+      )}
     </div>
   );
 }
