@@ -139,17 +139,17 @@ export default function NetWorthPage() {
                       key={`${a.id}_${editMonthISO}_${bal}_${currency}`}
                       onBlur={(e) => {
                         const amount = parseMoney(e.target.value);
-                        setPlan((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                netWorthAccounts: prev.netWorthAccounts.map((x) =>
-                                  x.id === a.id ? { ...x, balances: upsertDated(x.balances || [], editMonthISO, amount) } : x
-                                ),
-                              }
-                            : prev
-                        );
+                        setPlan((prev) => {
+                          if (!prev) return prev;
+                          const updated = { ...prev, netWorthAccounts: prev.netWorthAccounts.map((x) =>
+                            x.id === a.id ? { ...x, balances: upsertDated(x.balances || [], editMonthISO, amount) } : x
+                          ) };
+                          savePlan(updated);
+                          return updated;
+                        });
                       }}
+                    />
+                  </label>
                     />
                   </label>
 

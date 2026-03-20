@@ -13,8 +13,8 @@ export function NetWorthChart({currency,series,startMonthISO,heightPx=500}:{curr
   const[mounted,setMounted]=useState(false);
   const[hoverPct,setHoverPct]=useState<number|null>(null);
   useEffect(()=>{setMounted(true);},[]);
-  const VW=1200,VH=460;
-  const pad={l:90,r:20,t:20,b:55};
+  const VW=600,VH=340;
+  const pad={l:72,r:12,t:16,b:48};
   const chart=useMemo(()=>{
     const vals=series.map(p=>p.netWorth);
     const mn=vals.length?Math.min(...vals):0;
