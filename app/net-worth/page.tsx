@@ -150,8 +150,6 @@ export default function NetWorthPage() {
                       }}
                     />
                   </label>
-                    />
-                  </label>
 
                   <div className="md:col-span-1 flex justify-end">
                     <button

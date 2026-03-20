@@ -5,16 +5,16 @@ function safeCurrency(c:string){const x=(c||'').trim().toUpperCase();if(!/^[A-Z]
 function fmt0(n:number,c:string){return new Intl.NumberFormat('en-US',{style:'currency',currency:safeCurrency(c),maximumFractionDigits:0}).format(n);}
 function fmtK(n:number,c:string){return new Intl.NumberFormat('en-US',{style:'currency',currency:safeCurrency(c),notation:'compact',compactDisplay:'short',maximumFractionDigits:1}).format(n);}
 function parseISO(iso:string){const s=(iso||'').trim();if(!/^\d{4}-\d{2}$/.test(s))return{y:2026,m:0};const y=Number(s.slice(0,4));const mo=Number(s.slice(5,7))-1;return{y,m:mo<0||mo>11?0:mo};}
-const MON=['J','F','M','A','M','J','J','A','S','O','N','D'];
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function addM(sy:number,sm:number,add:number){const t=sy*12+sm+add;return{y:Math.floor(t/12),m:t%12};}
-function lbl(startISO:string,idx:number){const{y:sy,m:sm}=parseISO(startISO);const{y,m}=addM(sy,sm,idx);return MON[m]+String(y).slice(-2);}
+  return MON[m]+' '+String(y).slice(-2);
 function niceStep(range:number,maxTicks:number){const r=Math.max(1,range);const rough=r/maxTicks;const exp=Math.floor(Math.log10(rough));const base=Math.pow(10,exp);const frac=rough/base;let s=frac<=1.5?base:frac<=3?base*2:frac<=7?base*5:base*10;return Math.max(s,1);}
 export function NetWorthChart({currency,series,startMonthISO,heightPx=500}:{currency:string;series:SeriesPoint[];startMonthISO:string;heightPx?:number;}){
   const[mounted,setMounted]=useState(false);
   const[hoverPct,setHoverPct]=useState<number|null>(null);
   useEffect(()=>{setMounted(true);},[]);
   const VW=600,VH=340;
-  const pad={l:72,r:12,t:16,b:48};
+  const pad={l:88,r:12,t:16,b:52};
   const chart=useMemo(()=>{
     const vals=series.map(p=>p.netWorth);
     const mn=vals.length?Math.min(...vals):0;
