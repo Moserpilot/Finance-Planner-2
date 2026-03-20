@@ -203,7 +203,7 @@ export default function DashboardPage() {
             className="w-full accent-blue-500" aria-label="Scroll chart window" />
         </div>
         <div className="mt-3 px-2 flex-1">
-          <NetWorthChart currency={cur} series={windowed} startMonthISO={startISO} heightPx={480} />
+          <NetWorthChart currency={cur} series={windowed} startMonthISO={startISO} heightPx={580} />
         </div>
       </div>
     </div>
