@@ -191,7 +191,7 @@ export default function DashboardPage() {
               {[6, 12, 24, 60].map((m) => (
                 <button key={m} type="button" onClick={() => setWindowMonths(m)}
                   className={`rounded-lg px-3 py-2 text-sm font-medium transition ${windowMonths === m ? 'bg-blue-600/10 text-slate-900 dark:bg-blue-500/20 dark:text-slate-100' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'}`}>
-                  {m}m
+                  {m===6?"6m":m===12?"1y":m===24?"2y":"5y"}
                 </button>
               ))}
             </div>
@@ -203,7 +203,7 @@ export default function DashboardPage() {
             className="w-full accent-blue-500" aria-label="Scroll chart window" />
         </div>
         <div className="mt-3 px-2 flex-1">
-          <NetWorthChart currency={cur} series={windowed} startMonthISO={startISO} heightPx={520} />
+          <NetWorthChart currency={cur} series={windowed} startMonthISO={startISO} heightPx={480} />
         </div>
       </div>
     </div>
