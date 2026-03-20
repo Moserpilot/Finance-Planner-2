@@ -13,8 +13,8 @@ export function NetWorthChart({currency,series,startMonthISO,heightPx=500}:{curr
   const[mounted,setMounted]=useState(false);
   const[hoverPct,setHoverPct]=useState<number|null>(null);
   useEffect(()=>{setMounted(true);},[]);
-  const VW=600,VH=340;
-  const pad={l:68,r:12,t:16,b:52};
+  const VW=560,VH=320;
+  const pad={l:58,r:10,t:14,b:46};
   const chart=useMemo(()=>{
     const vals=series.map(p=>p.netWorth);
     const mn=vals.length?Math.min(...vals):0;
@@ -45,7 +45,7 @@ export function NetWorthChart({currency,series,startMonthISO,heightPx=500}:{curr
     if(lastM>0&&xTicks.length&&xTicks[xTicks.length-1].m!==lastM)xTicks.push({m:lastM,x:toX(lastM)});
     const yTicks=yTVals.map(v=>({v,y:toY(v)}));
     const bigNum=Math.max(Math.abs(tickMin),Math.abs(tickMax));
-    const yFmt=bigNum>=500000?fmtK:fmt0;
+    const yFmt=fmtK;
     return{pts,lineD,areaD,xTicks,yTicks,yFmt,x0,x1};
   },[series]);
   const hoverIdx=useMemo(()=>{if(hoverPct===null||!chart.pts.length)return null;return Math.round(hoverPct*(chart.pts.length-1));},[hoverPct,chart.pts.length]);
