@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { SidebarAssumptions } from "./SidebarAssumptions";
 
@@ -37,9 +37,23 @@ function TabItem({ href, label, active, icon }: { href: string; label: string; a
   );
 }
 
+function MoreMenu({ isMore, onClose }: { isMore: boolean; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-40 flex flex-col justify-end md:hidden" onClick={onClose}>
+      <div className="mx-3 mb-20 rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900" onClick={e => e.stopPropagation()}>
+        <div className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">More</div>
+        <Link href="/assumptions" onClick={onClose} className="flex items-center px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800">Assumptions</Link>
+        <Link href="/cashflow" onClick={onClose} className="flex items-center px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800">Cashflow</Link>
+        <Link href="/settings" onClick={onClose} className="flex items-center px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800 rounded-b-2xl">Settings</Link>
+      </div>
+    </div>
+  );
+}
+
 export function ClientShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/";
   const [mounted, setMounted] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const isMore = pathname.startsWith("/assumptions") || pathname.startsWith("/cashflow") || pathname.startsWith("/settings");
   return (
@@ -61,20 +75,26 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
           <SidebarAssumptions />
         </div>
       </aside>
-      <div className="flex flex-1 flex-col min-w-0">
+      <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
         <header className="flex md:hidden items-center border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-black/80">
           <span className="text-base font-semibold text-slate-900 dark:text-slate-100">Finance Planner</span>
         </header>
-        <main className="flex-1 px-4 py-4 md:px-6 md:py-6 pb-24 md:pb-6">{children}</main>
+        <main className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-6 pb-24 md:pb-6" style={{ WebkitOverflowScrolling: "touch" }}>{children}</main>
       </div>
       {mounted && (
-        <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-black/90" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-          <TabItem href="/" label="Dashboard" active={pathname==="/"} icon={<IconDashboard active={pathname==="/"} />} />
-          <TabItem href="/income" label="Income" active={pathname.startsWith("/income")} icon={<IconIncome active={pathname.startsWith("/income")} />} />
-          <TabItem href="/expenses" label="Expenses" active={pathname.startsWith("/expenses")} icon={<IconExpenses active={pathname.startsWith("/expenses")} />} />
-          <TabItem href="/net-worth" label="Net Worth" active={pathname.startsWith("/net-worth")} icon={<IconNetWorth active={pathname.startsWith("/net-worth")} />} />
-          <TabItem href="/settings" label="More" active={isMore} icon={<IconMore active={isMore} />} />
-        </nav>
+        <>
+          {showMore && <MoreMenu isMore={isMore} onClose={() => setShowMore(false)} />}
+          <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-black/90" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+            <TabItem href="/" label="Dashboard" active={!showMore && pathname==="/"} icon={<IconDashboard active={!showMore && pathname==="/"} />} />
+            <TabItem href="/income" label="Income" active={!showMore && pathname.startsWith("/income")} icon={<IconIncome active={!showMore && pathname.startsWith("/income")} />} />
+            <TabItem href="/expenses" label="Expenses" active={!showMore && pathname.startsWith("/expenses")} icon={<IconExpenses active={!showMore && pathname.startsWith("/expenses")} />} />
+            <TabItem href="/net-worth" label="Net Worth" active={!showMore && pathname.startsWith("/net-worth")} icon={<IconNetWorth active={!showMore && pathname.startsWith("/net-worth")} />} />
+            <button onClick={() => setShowMore(s => !s)} className={"flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors "+(showMore||isMore?"text-blue-600 dark:text-blue-400":"text-slate-500 dark:text-slate-500")}>
+              <IconMore active={showMore||isMore} />
+              <span>More</span>
+            </button>
+          </nav>
+        </>
       )}
     </div>
   );
