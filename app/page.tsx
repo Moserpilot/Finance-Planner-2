@@ -84,7 +84,7 @@ export default function DashboardPage() {
     setPlan(loadPlan());
   }, []);
 
-  // Listen for plan updates from other pages — reload but do NOT save
+  // Listen for plan updates from other pages - reload but do NOT save
   useEffect(() => {
     function onPlanUpdate() { setPlan(loadPlan()); }
     window.addEventListener('finance_planner_plan_updated', onPlanUpdate);
