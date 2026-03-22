@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Plan } from './lib/store';
 import { loadPlan } from './lib/store';
+import { Onboarding, hasCompletedOnboarding } from './components/Onboarding';
 import {
   buildNetWorthSeries,
   netWorthAsOf,
@@ -77,11 +78,13 @@ function Kpi({ label, value, tone, sub }: { label: string; value: string; tone: 
 
 export default function DashboardPage() {
   const [plan, setPlan] = useState<Plan | null>(null);
+  const [onboarded, setOnboarded] = useState(true);
   const [windowMonths, setWindowMonths] = useState(12);
   const [offset, setOffset] = useState(0);
 
   useEffect(() => {
     setPlan(loadPlan());
+    setOnboarded(hasCompletedOnboarding());
   }, []);
 
   // Listen for plan updates from other pages - reload but do NOT save
@@ -129,6 +132,7 @@ export default function DashboardPage() {
       .map((p) => ({ ...p, monthIndex: p.monthIndex - effOffset }));
   }, [series, effOffset, windowMonths]);
 
+  if (!onboarded) return <Onboarding onComplete={() => { setOnboarded(true); setPlan(loadPlan()); }} />;
   if (!plan) {
     return <div className="text-sm text-slate-500 dark:text-slate-400">Loading...</div>;
   }
