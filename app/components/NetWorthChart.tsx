@@ -29,7 +29,7 @@ export function NetWorthChart({currency,series,startMonthISO,heightPx=500}:{curr
     window.addEventListener('resize',onResize);
     return()=>window.removeEventListener('resize',onResize);
   },[]);
-  const VH=300;
+  const VH=Math.max(300,heightPx-48);
   const pad={l:80,r:12,t:18,b:56};
   const chart=useMemo(()=>{
     const VW=svgW;
@@ -67,7 +67,7 @@ export function NetWorthChart({currency,series,startMonthISO,heightPx=500}:{curr
   const hover=hoverIdx!=null?chart.pts[hoverIdx]:null;
   const endVal=series[series.length-1]?.netWorth??0;
   const lastPt=chart.pts.length?chart.pts[chart.pts.length-1]:null;
-  const ax='#94a3b8';
+  const ax='#cbd5e1';
   function onPointer(e:React.PointerEvent<SVGSVGElement>){const svg=e.currentTarget;const rect=svg.getBoundingClientRect();const xPx=e.clientX-rect.left;const clamped=Math.min(chart.x1,Math.max(chart.x0||pad.l,xPx));setHoverPct((clamped-(chart.x0||pad.l))/((chart.x1-(chart.x0||pad.l))||1));}
   if(!mounted)return<div ref={containerRef} className='w-full rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-slate-50 dark:bg-slate-900/40' style={{height:heightPx}}/>;
   return(
