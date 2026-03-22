@@ -180,7 +180,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-2xl border border-slate-200 bg-white pt-4 px-4 pb-0 overflow-hidden shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div className="px-2 pt-1">
             <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Net Worth Projection</div>
@@ -202,8 +202,8 @@ export default function DashboardPage() {
             onChange={(e) => setOffset(Number(e.target.value))}
             className="w-full accent-blue-500" aria-label="Scroll chart window" />
         </div>
-        <div className="mt-3 px-2 flex-1">
-          <NetWorthChart currency={cur} series={windowed} startMonthISO={startISO} heightPx={580} />
+        <div className="mt-3 px-0 flex-1">
+          <NetWorthChart currency={cur} series={windowed} startMonthISO={startISO} heightPx={340} />
         </div>
       </div>
     </div>
