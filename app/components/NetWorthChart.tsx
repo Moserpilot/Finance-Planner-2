@@ -67,7 +67,7 @@ export function NetWorthChart({currency,series,startMonthISO,heightPx=500}:{curr
   const hover=hoverIdx!=null?chart.pts[hoverIdx]:null;
   const endVal=series[series.length-1]?.netWorth??0;
   const lastPt=chart.pts.length?chart.pts[chart.pts.length-1]:null;
-  const ax='#cbd5e1';
+  const ax='#e2e8f0';
   function onPointer(e:React.PointerEvent<SVGSVGElement>){const svg=e.currentTarget;const rect=svg.getBoundingClientRect();const xPx=e.clientX-rect.left;const clamped=Math.min(chart.x1,Math.max(chart.x0||pad.l,xPx));setHoverPct((clamped-(chart.x0||pad.l))/((chart.x1-(chart.x0||pad.l))||1));}
   if(!mounted)return<div ref={containerRef} className='w-full rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-slate-50 dark:bg-slate-900/40' style={{height:heightPx}}/>;
   return(
