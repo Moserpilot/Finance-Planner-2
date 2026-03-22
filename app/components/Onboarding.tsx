@@ -40,8 +40,12 @@ export function Onboarding({ onComplete }: Props) {
     onComplete();
   }
 
+  const btn = 'w-full rounded-2xl bg-blue-600 py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition';
+  const inp = 'w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-400';
+  const lbl = 'text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5';
+
   const steps = [
-    <div key='welcome' className='flex flex-col items-center text-center px-6 py-8 gap-6'>
+    <div key='s0' className='flex flex-col items-center text-center px-6 py-8 gap-6'>
       <div className='w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center'>
         <svg width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' strokeLinejoin='round' className='text-blue-500'>
           <polyline points='23 6 13.5 15.5 8.5 10.5 1 18'/><polyline points='17 6 23 6 23 12'/>
@@ -55,18 +59,15 @@ export function Onboarding({ onComplete }: Props) {
           Your data never leaves your device
         </div>
       </div>
-      <button onClick={next} className='w-full rounded-2xl bg-blue-600 py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition'>Get Started</button>
+      <button onClick={next} className={btn}>Get Started</button>
       <button onClick={skip} className='text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition'>Skip setup</button>
     </div>,
 
-    <div key='setup' className='flex flex-col px-6 py-8 gap-6'>
-      <div>
-        <div className='text-xl font-bold text-slate-900 dark:text-slate-100 mb-1'>Basic Setup</div>
-        <div className='text-sm text-slate-500 dark:text-slate-400'>Set your currency and planning start date.</div>
-      </div>
-      <label className='block'>
-        <div className='text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5'>Currency</div>
-        <select className='w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-400' value={plan.currency} onChange={e => setPlan(p => ({ ...p, currency: e.target.value }))}>
+    <div key='s1' className='flex flex-col px-6 py-8 gap-5'>
+      <div><div className='text-xl font-bold text-slate-900 dark:text-slate-100 mb-1'>Basic Setup</div>
+      <div className='text-sm text-slate-500 dark:text-slate-400'>Set your currency and planning start date.</div></div>
+      <label className='block'><div className={lbl}>Currency</div>
+        <select className={inp} value={plan.currency} onChange={e => setPlan(p => ({ ...p, currency: e.target.value }))}>
           <option value='USD'>USD - US Dollar</option>
           <option value='EUR'>EUR - Euro</option>
           <option value='GBP'>GBP - British Pound</option>
@@ -76,55 +77,49 @@ export function Onboarding({ onComplete }: Props) {
           <option value='CHF'>CHF - Swiss Franc</option>
         </select>
       </label>
-      <label className='block'>
-        <div className='text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5'>Planning start month</div>
-        <input type='month' className='w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-400' value={plan.startMonthISO} onChange={e => setPlan(p => ({ ...p, startMonthISO: e.target.value, netWorthViewMonthISO: e.target.value }))} />
+      <label className='block'><div className={lbl}>Planning start month</div>
+        <input type='month' className={inp} value={plan.startMonthISO} onChange={e => setPlan(p => ({ ...p, startMonthISO: e.target.value, netWorthViewMonthISO: e.target.value }))} />
       </label>
-      <button onClick={next} className='w-full rounded-2xl bg-blue-600 py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition'>Continue</button>
+      <button onClick={next} className={btn}>Continue</button>
     </div>,
 
-    <div key='goal' className='flex flex-col px-6 py-8 gap-6'>
-      <div>
-        <div className='text-xl font-bold text-slate-900 dark:text-slate-100 mb-1'>Your Financial Goal</div>
-        <div className='text-sm text-slate-500 dark:text-slate-400'>Set a net worth target and expected investment return.</div>
-      </div>
-      <label className='block'>
-        <div className='text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5'>Net worth goal</div>
-        <div className='flex items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus-within:border-blue-400'>
-          <span className='pl-3 text-slate-500 text-sm'>$</span>
-          <input type='number' placeholder='1000000' className='w-full bg-transparent px-2 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none' value={plan.goalNetWorth||''} onChange={e => setPlan(p => ({ ...p, goalNetWorth: Number(e.target.value)||0 }))} />
-        </div>
+    <div key='s2' className='flex flex-col px-6 py-8 gap-5'>
+      <div><div className='text-xl font-bold text-slate-900 dark:text-slate-100 mb-1'>Your Financial Goal</div>
+      <div className='text-sm text-slate-500 dark:text-slate-400'>Set a net worth target and expected return.</div></div>
+      <label className='block'><div className={lbl}>Net worth goal ({plan.currency})</div>
+        <input type='text' className={inp} placeholder='1000000'
+          value={plan.goalNetWorth > 0 ? new Intl.NumberFormat('en-US').format(plan.goalNetWorth) : ''}
+          onChange={e => setPlan(p => ({ ...p, goalNetWorth: Number(e.target.value.replace(/,/g, '')) || 0 }))}
+        />
       </label>
-      <label className='block'>
-        <div className='text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5'>Expected annual return</div>
+      <label className='block'><div className={lbl}>Expected annual return</div>
         <div className='flex items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus-within:border-blue-400'>
-          <input type='number' placeholder='7' className='w-full bg-transparent pl-3 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none' value={plan.expectedReturnPct||''} onChange={e => setPlan(p => ({ ...p, expectedReturnPct: Number(e.target.value)||0 }))} />
-          <span className='pr-3 text-slate-500 text-sm'>%</span>
+          <input type='text' placeholder='7' className='w-full bg-transparent pl-3 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none'
+          value={plan.expectedReturnPct > 0 ? plan.expectedReturnPct + '%' : ''}
+            onChange={e => setPlan(p => ({ ...p, expectedReturnPct: Number(e.target.value.replace('%','')) || 0 }))}
+          />
+          <span className='pr-3 text-sm text-slate-500'>%</span>
         </div>
         <div className='mt-1.5 text-xs text-slate-400'>Historical S&P 500 average is ~7% after inflation</div>
       </label>
-      <button onClick={next} className='w-full rounded-2xl bg-blue-600 py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition'>Continue</button>
+      <button onClick={next} className={btn}>Continue</button>
     </div>,
 
-    <div key='account' className='flex flex-col px-6 py-8 gap-6'>
-      <div>
-        <div className='text-xl font-bold text-slate-900 dark:text-slate-100 mb-1'>Add Your First Account</div>
-        <div className='text-sm text-slate-500 dark:text-slate-400'>Add a bank or investment account to start tracking your net worth.</div>
-      </div>
-      <label className='block'>
-        <div className='text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5'>Account name</div>
-        <input type='text' placeholder='e.g. Checking, Brokerage, Roth IRA' className='w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-400' value={accountName} onChange={e => setAccountName(e.target.value)} />
+    <div key='s3' className='flex flex-col px-6 py-8 gap-5'>
+      <div><div className='text-xl font-bold text-slate-900 dark:text-slate-100 mb-1'>Add Your First Account</div>
+      <div className='text-sm text-slate-500 dark:text-slate-400'>Add a bank or investment account to start tracking.</div></div>
+      <label className='block'><div className={lbl}>Account name</div>
+        <input type='text' className={inp} placeholder='e.g. Checking, Brokerage, Roth IRA' value={accountName} onChange={e => setAccountName(e.target.value)} />
       </label>
-      <label className='block'>
-        <div className='text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5'>Account type</div>
-        <select className='w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-400' value={accountType} onChange={e => setAccountType(e.target.value as any)}>
+      <label className='block'><div className={lbl}>Account type</div>
+        <select className={inp} value={accountType} onChange={e => setAccountType(e.target.value as any)}>
           <option value='cash'>Cash (checking, savings)</option>
           <option value='taxable'>Taxable (brokerage)</option>
           <option value='retirement'>Retirement (401k, IRA)</option>
           <option value='other'>Other</option>
         </select>
       </label>
-      <button onClick={finish} className='w-full rounded-2xl bg-blue-600 py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition'>Start Planning</button>
+      <button onClick={finish} className={btn}>Start Planning</button>
       <button onClick={skip} className='text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition text-center'>Skip for now</button>
     </div>,
   ];

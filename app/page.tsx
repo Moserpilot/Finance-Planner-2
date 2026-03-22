@@ -78,7 +78,7 @@ function Kpi({ label, value, tone, sub }: { label: string; value: string; tone: 
 
 export default function DashboardPage() {
   const [plan, setPlan] = useState<Plan | null>(null);
-  const [onboarded, setOnboarded] = useState(true);
+  const [onboarded, setOnboarded] = useState(false);
   const [windowMonths, setWindowMonths] = useState(12);
   const [offset, setOffset] = useState(0);
 
