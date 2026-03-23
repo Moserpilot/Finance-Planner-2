@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { amountForMonth } from '../lib/engine';
 import type { Plan } from '../lib/store';
 import { createDefaultPlan, loadPlan, savePlan } from '../lib/store';
 
@@ -14,6 +15,80 @@ function downloadText(filename: string, text: string) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+function downloadCSV(filename: string, rows: (string | number)[][]) {
+  const csv = rows
+    .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\r\n');
+  // BOM so Excel opens with correct encoding
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function addMonthsISO(startISO: string, add: number) {
+  const ok = /^\d{4}-\d{2}$/.test(startISO);
+  const y0 = ok ? Number(startISO.slice(0, 4)) : 2026;
+  const m0 = ok ? Number(startISO.slice(5, 7)) - 1 : 0;
+  const t = y0 * 12 + m0 + add;
+  const y = Math.floor(t / 12);
+  const m = t % 12;
+  return `${y}-${String(m + 1).padStart(2, '0')}`;
+}
+
+function exportCashFlowCSV(plan: Plan) {
+  const rows: (string | number)[][] = [
+    ['Month', 'Recurring Income', 'One-time Income', 'Recurring Expenses', 'One-time Expenses', 'Net', 'Cumulative'],
+  ];
+  let cumulative = 0;
+  for (let i = 0; i < 60; i++) {
+    const monthISO = addMonthsISO(plan.startMonthISO || '2026-01', i);
+    const recurringIncome = (plan.income || []).reduce((s, x) => s + amountForMonth(x, monthISO), 0);
+    const recurringExpenses = (plan.expenses || []).reduce((s, x) => s + amountForMonth(x, monthISO), 0);
+    const oneTimeIncome = (plan.oneTimeIncome || []).filter(x => x.monthISO === monthISO).reduce((s, x) => s + x.amount, 0);
+    const oneTimeExpenses = (plan.oneTimeExpenses || []).filter(x => x.monthISO === monthISO).reduce((s, x) => s + x.amount, 0);
+    const net = recurringIncome + oneTimeIncome - recurringExpenses - oneTimeExpenses;
+    cumulative += net;
+    rows.push([monthISO, recurringIncome, oneTimeIncome, recurringExpenses, oneTimeExpenses, net, cumulative]);
+  }
+  downloadCSV(`cashflow_${new Date().toISOString().slice(0, 10)}.csv`, rows);
+}
+
+function exportAccountsCSV(plan: Plan) {
+  const rows: (string | number)[][] = [['Account', 'Type', 'Month', 'Balance']];
+  for (const acct of plan.netWorthAccounts || []) {
+    const sorted = [...(acct.balances || [])].sort((a, b) => a.monthISO.localeCompare(b.monthISO));
+    for (const b of sorted) {
+      rows.push([acct.name, acct.type, b.monthISO, b.amount]);
+    }
+  }
+  if (rows.length === 1) rows.push(['No account balances entered yet', '', '', '']);
+  downloadCSV(`accounts_${new Date().toISOString().slice(0, 10)}.csv`, rows);
+}
+
+function exportItemsCSV(plan: Plan) {
+  const rows: (string | number)[][] = [['Type', 'Kind', 'Name', 'Default Amount', 'Category', 'Behavior', 'End Month']];
+  for (const item of plan.income || []) {
+    rows.push(['Recurring', 'Income', item.name, item.defaultAmount, '', item.behavior, item.endMonthISO || '']);
+  }
+  for (const item of plan.expenses || []) {
+    rows.push(['Recurring', 'Expense', item.name, item.defaultAmount, item.category || '', item.behavior, item.endMonthISO || '']);
+  }
+  for (const item of plan.oneTimeIncome || []) {
+    rows.push(['One-time', 'Income', item.name, item.amount, '', '', item.monthISO]);
+  }
+  for (const item of plan.oneTimeExpenses || []) {
+    rows.push(['One-time', 'Expense', item.name, item.amount, item.category || '', '', item.monthISO]);
+  }
+  if (rows.length === 1) rows.push(['No income or expense items yet', '', '', '', '', '', '']);
+  downloadCSV(`items_${new Date().toISOString().slice(0, 10)}.csv`, rows);
 }
 
 type ThemeMode = 'system' | 'light' | 'dark';
@@ -147,6 +222,30 @@ export default function SettingsPage() {
           }}
         />
         {status ? <div className="mt-3 text-sm text-slate-900 dark:text-slate-100">{status}</div> : null}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Export to CSV</div>
+        <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Download your data as spreadsheet files. Opens in Excel, Numbers, or Google Sheets.
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button type="button" onClick={() => exportCashFlowCSV(plan)}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-white/5">
+            <svg className="h-4 w-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-6m3 6v-3m3 3v-9M3 19h18" /></svg>
+            Cash Flow (60 mo)
+          </button>
+          <button type="button" onClick={() => exportAccountsCSV(plan)}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-white/5">
+            <svg className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M3 12h18M3 17h18" /></svg>
+            Account Balances
+          </button>
+          <button type="button" onClick={() => exportItemsCSV(plan)}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-white/5">
+            <svg className="h-4 w-4 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+            Income &amp; Expenses
+          </button>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
