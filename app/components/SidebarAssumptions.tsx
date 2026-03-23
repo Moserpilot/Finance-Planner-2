@@ -61,9 +61,9 @@ export function SidebarAssumptions() {
   return (
     <div className="mt-6 space-y-3">
       <div className="rounded-2xl border border-slate-200 bg-white/70 p-3 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-white/[0.04]">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100">Quick assumptions</div>
+        <div className="text-xs font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100">Key Assumptions</div>
         <label className="mt-3 block text-xs text-slate-900 dark:text-slate-100">
-          Goal net worth
+          Goal Net Worth
           <input
             className="mt-1 w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none dark:border-slate-800 dark:bg-white/[0.04] dark:text-slate-100"
             value={goalDraft}
@@ -79,7 +79,7 @@ export function SidebarAssumptions() {
           />
         </label>
         <label className="mt-3 block text-xs text-slate-900 dark:text-slate-100">
-          Expected return
+          Expected Return (annual %)
           <input
             className="mt-1 w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none dark:border-slate-800 dark:bg-white/[0.04] dark:text-slate-100"
             value={returnDraft}
@@ -95,7 +95,7 @@ export function SidebarAssumptions() {
           />
         </label>
       </div>
-      <AllocationPie slices={slices} currency={currency} title={`Allocation (${asOfMonth})`} />
+      <AllocationPie slices={slices} currency={currency} title={`Allocation — ${(() => { try { return new Intl.DateTimeFormat('en-US',{month:'short',year:'numeric'}).format(new Date(`${asOfMonth}-01T00:00:00`)); } catch { return asOfMonth; } })()}`} />
     </div>
   );
 }

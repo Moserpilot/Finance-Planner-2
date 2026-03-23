@@ -141,31 +141,52 @@ export default function DashboardPage() {
   }
 
   const netTone: 'positive' | 'negative' = totals.net >= 0 ? 'positive' : 'negative';
-  const modeLabel =
-    plan.netWorthMode === 'snapshot' ? 'Track actual balances' :
-    plan.netWorthMode === 'projection' ? 'Hypothetical projection' :
-    'Reality-anchored projection';
 
   const startMonth = plan.startMonthISO || '2026-01';
   const latestSnap = latestNetWorthSnapshotMonth(plan);
   const asOfMonth = plan.netWorthMode === 'projection' ? startMonth : (latestSnap ?? startMonth);
   const netWorthKpi = netWorthAsOf(plan, asOfMonth)?.netWorth ?? 0;
-  const netWorthSub = `Mode: ${modeLabel} - As of: ${asOfMonth}`;
+
+  function fmtMonthShort(iso: string) {
+    if (!/^\d{4}-\d{2}$/.test(iso)) return iso;
+    return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(new Date(`${iso}-01T00:00:00`));
+  }
+  const netWorthSub = `As of ${fmtMonthShort(asOfMonth)}`;
 
   const projectedNW = series.length ? series[series.length - 1].netWorth : netWorthKpi;
   const goal = Math.max(0, plan.goalNetWorth ?? 0);
   const curPct = goal > 0 ? clamp01(netWorthKpi / goal) : 0;
   const projPct = goal > 0 ? clamp01(projectedNW / goal) : 0;
 
+  // Months until goal is reached in the projection
+  const monthsToGoal = useMemo(() => {
+    if (!goal || goal <= 0 || !series.length) return null;
+    const idx = series.findIndex(p => p.netWorth >= goal);
+    if (idx < 0) return null;
+    return idx;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [series, goal]);
+
+  // Chart window label: "Jan 2026 – Dec 2026"
+  function addMonthsISO2(startISO: string, add: number) {
+    const ok = /^\d{4}-\d{2}$/.test(startISO);
+    const y0 = ok ? Number(startISO.slice(0, 4)) : 2026;
+    const m0 = ok ? Number(startISO.slice(5, 7)) - 1 : 0;
+    const t = y0 * 12 + m0 + add;
+    return `${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, '0')}`;
+  }
+  const windowEndISO = addMonthsISO2(startISO, windowMonths);
+  const chartWindowLabel = `${fmtMonthShort(startISO)} – ${fmtMonthShort(windowEndISO)}`;
+
   return (
     <div className="space-y-6">
       <div>
         <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Dashboard</div>
-        <div className="text-sm text-slate-500 dark:text-slate-400">Local-only cash flow + net worth projection</div>
+        <div className="text-sm text-slate-500 dark:text-slate-400">Your complete financial picture — 100% private, stored only on your device.</div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-5">
-        <Kpi label="Net Worth (balances)" value={money(netWorthKpi, cur)} tone="neutral" sub={netWorthSub} />
+        <Kpi label="Net Worth" value={money(netWorthKpi, cur)} tone="neutral" sub={netWorthSub} />
         <Kpi label="Monthly Income" value={money(totals.inc, cur)} tone="positive" />
         <Kpi label="Monthly Expenses" value={money(totals.exp, cur)} tone="negative" />
         <Kpi label="Net Cash Flow" value={money(totals.net, cur)} tone={netTone} />
@@ -179,6 +200,16 @@ export default function DashboardPage() {
               <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                 Projected: <span className="font-medium text-slate-900 dark:text-slate-100">{(projPct * 100).toFixed(1)}%</span>
               </div>
+              {monthsToGoal !== null && (
+                <div className="mt-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  {monthsToGoal === 0 ? 'Goal reached!' : monthsToGoal < 12
+                    ? `${monthsToGoal}mo to goal`
+                    : `${Math.floor(monthsToGoal / 12)}y ${monthsToGoal % 12}mo to goal`}
+                </div>
+              )}
+              {goal === 0 && (
+                <div className="mt-1 text-xs text-slate-400 dark:text-slate-500">Set a goal in Assumptions</div>
+              )}
             </div>
             <div className="text-blue-600 dark:text-blue-400">
               <ProgressRing pct={curPct} />
@@ -191,7 +222,7 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div className="px-2 pt-1">
             <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Net Worth Projection</div>
-            <div className="text-xs text-slate-500 dark:text-slate-400">Window {windowMonths}m - Start {startISO}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">{chartWindowLabel}</div>
           </div>
           <div className="px-2">
             <div className="inline-flex rounded-xl border border-slate-200 p-1 dark:border-slate-800">

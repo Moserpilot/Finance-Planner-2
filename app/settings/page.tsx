@@ -338,7 +338,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div>
         <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Settings</div>
-        <div className="text-sm text-slate-500 dark:text-slate-400">Appearance, sync, backup, and local-only storage</div>
+        <div className="text-sm text-slate-500 dark:text-slate-400">Appearance, sync, and data management — everything stays on your device.</div>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -397,7 +397,7 @@ export default function SettingsPage() {
           <button type="button" onClick={() => exportItemsCSV(plan)}
             className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-white/5">
             <svg className="h-4 w-4 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
-            Income &amp; Expenses
+            Income & Expenses
           </button>
         </div>
       </div>
@@ -408,7 +408,7 @@ export default function SettingsPage() {
           This app does not send data to any server. All data is stored locally in your browser.
         </div>
         <div className="mt-4">
-          <div className="text-xs font-medium text-slate-900 dark:text-slate-400">Current plan JSON (read-only)</div>
+          <div className="text-xs font-medium text-slate-900 dark:text-slate-100">Current plan data (read-only)</div>
           <pre className="mt-2 max-h-[260px] overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-900 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-100">
             {json}
           </pre>

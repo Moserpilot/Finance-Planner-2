@@ -8,6 +8,10 @@ function safeCurrency(c: string) { const x = (c || '').trim().toUpperCase(); ret
 function money(n: number, c: string) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: safeCurrency(c), maximumFractionDigits: 0 }).format(Number.isFinite(n) ? n : 0); }
 function addMonthsISO(s: string, add: number) { const ok = /^\d{4}-\d{2}$/.test(s); const y0 = ok ? Number(s.slice(0, 4)) : 2026; const m0 = ok ? Number(s.slice(5, 7)) - 1 : 0; const t = y0 * 12 + m0 + add; return `${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, '0')}`; }
 function parseAmount(v: string) { const n = Number(String(v).replace(/[$,\s]+/g, '')); return Number.isFinite(n) ? n : 0; }
+function monthLabel(iso: string) {
+  if (!/^\d{4}-\d{2}$/.test(iso)) return iso;
+  return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(new Date(`${iso}-01T00:00:00`));
+}
 
 function barColor(pct: number) {
   if (pct > 1) return 'bg-rose-500';
@@ -110,14 +114,14 @@ export default function BudgetPage() {
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
           <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Budget</div>
-          <div className="text-sm text-slate-500 dark:text-slate-400">Track spending against monthly targets.</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">Set targets and track spending by category.</div>
         </div>
         <select
           value={month}
           onChange={e => setMonth(e.target.value)}
           className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
         >
-          {monthOptions.map(m => <option key={m} value={m}>{m}</option>)}
+          {monthOptions.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
         </select>
       </div>
 
@@ -208,7 +212,7 @@ export default function BudgetPage() {
                     : pct >= 1
                       ? <span className="text-blue-500 font-medium">Budget met</span>
                       : <span className="text-slate-400">{money(budget - spent, currency)} left</span>
-                  : <span className="text-slate-300 dark:text-slate-600">No budget set</span>}
+                  : <span className="text-slate-400 dark:text-slate-500">No budget set</span>}
               </div>
             </div>
           );

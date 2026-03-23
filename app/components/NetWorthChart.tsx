@@ -74,7 +74,7 @@ export function NetWorthChart({currency,series,startMonthISO,heightPx=500}:{curr
     <div className='w-full' style={{height:heightPx}}>
       <div className='mb-1 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1'>
         <div>End value: <span className='font-semibold text-slate-900 dark:text-slate-100'>{fmt0(endVal,currency)}</span></div>
-        {hover?<div>{lbl(startMonthISO,hover.mi)} · <span className='font-semibold text-slate-900 dark:text-slate-100'>{fmt0(hover.v,currency)}</span></div>:<div className='opacity-50 italic'>Hover for details</div>}
+        {hover?<div>{lbl(startMonthISO,hover.mi)} · <span className='font-semibold text-slate-900 dark:text-slate-100'>{fmt0(hover.v,currency)}</span></div>:<div className='opacity-50 italic'>Move cursor over chart to see values</div>}
       </div>
       <div ref={containerRef} className='w-full overflow-hidden rounded-2xl border border-slate-200/60 dark:border-slate-800/60' style={{height:heightPx-24}}>
         <svg width={chart.VW} height={VH} className='block text-blue-500 dark:text-blue-400' onPointerMove={onPointer} onPointerDown={onPointer} onPointerLeave={()=>setHoverPct(null)} style={{touchAction:'none',width:'100%',height:'100%'}}>

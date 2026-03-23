@@ -32,7 +32,7 @@ function NavLink({ href, label, active }: { href: string; label: string; active:
 
 function TabItem({ href, label, active, icon }: { href: string; label: string; active: boolean; icon: React.ReactNode }) {
   return (
-    <Link href={href} className={"flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors "+(active?"text-blue-600 dark:text-blue-400":"text-slate-500 dark:text-slate-500")}>
+    <Link href={href} className={"flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs font-medium transition-colors "+(active?"text-blue-600 dark:text-blue-400":"text-slate-500 dark:text-slate-500")}>
       {icon}
       <span>{label}</span>
     </Link>
@@ -46,7 +46,7 @@ function MoreMenu({ isMore, onClose }: { isMore: boolean; onClose: () => void })
         <div className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">More</div>
         <Link href="/budget" onClick={onClose} className="flex items-center px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800">Budget</Link>
         <Link href="/assumptions" onClick={onClose} className="flex items-center px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800">Assumptions</Link>
-        <Link href="/cashflow" onClick={onClose} className="flex items-center px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800">Cashflow</Link>
+        <Link href="/cashflow" onClick={onClose} className="flex items-center px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800">Cash Flow</Link>
         <Link href="/settings" onClick={onClose} className="flex items-center px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800 rounded-b-2xl">Settings</Link>
       </div>
     </div>
@@ -113,7 +113,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
             <NavLink href="/budget" label="Budget" active={mounted && pathname.startsWith("/budget")} />
             <NavLink href="/net-worth" label="Net Worth" active={mounted && pathname.startsWith("/net-worth")} />
             <NavLink href="/assumptions" label="Assumptions" active={mounted && pathname.startsWith("/assumptions")} />
-            <NavLink href="/cashflow" label="Cashflow" active={mounted && pathname.startsWith("/cashflow")} />
+            <NavLink href="/cashflow" label="Cash Flow" active={mounted && pathname.startsWith("/cashflow")} />
             <NavLink href="/settings" label="Settings" active={mounted && pathname.startsWith("/settings")} />
           </nav>
           <SidebarAssumptions />
@@ -133,7 +133,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
             <TabItem href="/income" label="Income" active={!showMore && pathname.startsWith("/income")} icon={<IconIncome active={!showMore && pathname.startsWith("/income")} />} />
             <TabItem href="/expenses" label="Expenses" active={!showMore && pathname.startsWith("/expenses")} icon={<IconExpenses active={!showMore && pathname.startsWith("/expenses")} />} />
             <TabItem href="/net-worth" label="Net Worth" active={!showMore && pathname.startsWith("/net-worth")} icon={<IconNetWorth active={!showMore && pathname.startsWith("/net-worth")} />} />
-            <button onClick={() => setShowMore(s => !s)} className={"flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors "+(showMore||isMore?"text-blue-600 dark:text-blue-400":"text-slate-500 dark:text-slate-500")}>
+            <button onClick={() => setShowMore(s => !s)} className={"flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs font-medium transition-colors "+(showMore||isMore?"text-blue-600 dark:text-blue-400":"text-slate-500 dark:text-slate-500")}>
               <IconMore active={showMore||isMore} />
               <span>More</span>
             </button>

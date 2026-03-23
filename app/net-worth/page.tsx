@@ -13,6 +13,10 @@ function money(n: number, currency: string) {
     maximumFractionDigits: 0,
   }).format(Number.isFinite(n) ? n : 0);
 }
+function monthLabel(iso: string) {
+  if (!/^\d{4}-\d{2}$/.test(iso)) return iso;
+  return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(new Date(`${iso}-01T00:00:00`));
+}
 
 function parseMoney(v: string) {
   const n = Number(String(v).replace(/[$,%\s,]+/g, ''));
@@ -63,7 +67,7 @@ export default function NetWorthPage() {
         <div className="xl:col-span-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-4 flex items-end justify-between gap-3">
             <label className="text-sm">
-              <div className="mb-1 text-slate-900 dark:text-slate-400">Edit month (YYYY-MM)</div>
+              <div className="mb-1 font-medium text-slate-900 dark:text-slate-100">Month</div>
               <input
                 className="rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-slate-900 outline-none dark:border-slate-800 dark:text-slate-100"
                 value={editMonthISO}
@@ -83,7 +87,7 @@ export default function NetWorthPage() {
                     : prev
                 )
               }
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm dark:border-slate-800"
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-white/5"
             >
               Add account
             </button>
@@ -95,7 +99,7 @@ export default function NetWorthPage() {
               return (
                 <div key={a.id} className="grid gap-3 rounded-2xl border border-slate-200 p-4 md:grid-cols-12 md:items-end dark:border-slate-800">
                   <label className="md:col-span-4 text-sm">
-                    <div className="mb-1 text-slate-900 dark:text-slate-400">Account name</div>
+                    <div className="mb-1 font-medium text-slate-900 dark:text-slate-100">Account name</div>
                     <input
                       className="w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-slate-900 outline-none dark:border-slate-800 dark:text-slate-100"
                       value={a.name}
@@ -115,7 +119,7 @@ export default function NetWorthPage() {
                   </label>
 
                   <label className="md:col-span-3 text-sm">
-                    <div className="mb-1 text-slate-900 dark:text-slate-400">Type</div>
+                    <div className="mb-1 font-medium text-slate-900 dark:text-slate-100">Type</div>
                     <select
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
                       value={a.type}
@@ -141,7 +145,7 @@ export default function NetWorthPage() {
                   </label>
 
                   <label className="md:col-span-4 text-sm">
-                    <div className="mb-1 text-slate-900 dark:text-slate-400">Balance for {editMonthISO}</div>
+                    <div className="mb-1 font-medium text-slate-900 dark:text-slate-100">Balance — {monthLabel(editMonthISO)}</div>
                     <input
                       className="w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-slate-900 outline-none dark:border-slate-800 dark:text-slate-100"
                       defaultValue={money(bal, currency)}
@@ -163,7 +167,7 @@ export default function NetWorthPage() {
                   <div className="md:col-span-1 flex justify-end">
                     <button
                       type="button"
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-rose-600 dark:border-slate-800"
+                      className="rounded-xl border border-rose-200 px-3 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 dark:border-rose-900/40 dark:text-rose-400 dark:hover:bg-rose-500/10"
                       onClick={() =>
                         setPlan((prev) =>
                           prev

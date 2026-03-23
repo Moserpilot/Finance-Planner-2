@@ -41,7 +41,7 @@ function DonutChart({ slices }: { slices: AllocationSlice[] }) {
       <div className="flex items-center justify-center" style={{ width: 160, height: 160 }}>
         <svg viewBox="0 0 160 160" width={160} height={160}>
           <circle cx={80} cy={80} r={60} fill="none" stroke="#e2e8f0" strokeWidth={24} />
-          <text x={80} y={85} textAnchor="middle" fontSize={13} fill="#94a3b8" fontFamily="inherit">No data</text>
+          <text x={80} y={85} textAnchor="middle" fontSize={13} fill="#94a3b8" fontFamily="inherit">No balances yet</text>
         </svg>
       </div>
     );
@@ -80,7 +80,7 @@ function DonutChart({ slices }: { slices: AllocationSlice[] }) {
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
         <span className="text-base font-bold text-slate-900 dark:text-slate-100 tabular-nums">{abbreviate(total)}</span>
-        <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">total</span>
+        <span className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">total</span>
       </div>
     </div>
   );
@@ -103,7 +103,7 @@ export function AllocationPie({ slices, currency, title }: Props) {
               <div key={s.key} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5">
                   <span className="inline-block rounded-full" style={{ width: 8, height: 8, backgroundColor: s.color, flexShrink: 0 }} />
-                  <span className="text-slate-900 dark:text-slate-400">{s.label}</span>
+                  <span className="text-slate-900 dark:text-slate-100">{s.label}</span>
                 </div>
                 <div className="flex items-center gap-2 tabular-nums">
                   <span className="text-slate-500 dark:text-slate-400">{pct}%</span>

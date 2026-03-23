@@ -75,7 +75,7 @@ export default function CashflowPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Cash Flow Planner</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Track recurring, variable, and one-time cash flow month by month.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Month-by-month income, expenses, and running total.</p>
         </div>
         <label className="text-sm">
           <div className="mb-1 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Duration</div>
@@ -125,7 +125,7 @@ export default function CashflowPage() {
                   <td className="px-3 py-2 text-right text-rose-600">{money(r.recurringExpenses, currency)}</td>
                   <td className="px-3 py-2 text-right text-rose-600">{money(r.oneTimeExpenses, currency)}</td>
                   <td className={`px-3 py-2 text-right font-medium ${r.net >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{money(r.net, currency)}</td>
-                  <td className={`px-3 py-2 text-right font-medium ${r.cum >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>{money(r.cum, currency)}</td>
+                  <td className={`px-3 py-2 text-right font-medium ${r.cum >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>{money(r.cum, currency)}</td>
                 </tr>
               ))}
             </tbody>
