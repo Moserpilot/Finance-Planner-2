@@ -3,6 +3,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { SidebarAssumptions } from "./SidebarAssumptions";
+import { loadPlan, savePlanFromSync } from "../lib/store";
+import { syncPlan, LAST_SYNCED_KEY } from "../lib/sync";
 
 function IconDashboard({ active }: { active: boolean }) {
   return (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active?2.2:1.8} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>);
@@ -51,11 +53,51 @@ function MoreMenu({ isMore, onClose }: { isMore: boolean; onClose: () => void })
   );
 }
 
+// ─── background sync ─────────────────────────────────────────────────────────
+
+let pushDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function runSync() {
+  try {
+    const plan = loadPlan();
+    const serverUrl = window.location.origin;
+    const result = await syncPlan(plan, serverUrl);
+    if (result.status === 'pulled' && 'plan' in result) {
+      savePlanFromSync(result.plan as any);
+    }
+    if (result.status !== 'error') {
+      localStorage.setItem(LAST_SYNCED_KEY, new Date().toISOString());
+      window.dispatchEvent(new Event('fp_sync_updated'));
+    }
+  } catch {
+    // sync is best-effort — never crash the app
+  }
+}
+
+function schedulePush() {
+  if (pushDebounceTimer) clearTimeout(pushDebounceTimer);
+  pushDebounceTimer = setTimeout(runSync, 5000);
+}
+
+// ─── shell component ──────────────────────────────────────────────────────────
+
 export function ClientShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/";
   const [mounted, setMounted] = useState(false);
   const [showMore, setShowMore] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    setMounted(true);
+    // Initial sync on load
+    runSync();
+    // Push to server whenever the user saves (but not when we pulled from sync)
+    function onPlanUpdated(e: Event) {
+      if ((e as CustomEvent).detail?.fromSync) return;
+      schedulePush();
+    }
+    window.addEventListener('finance_planner_plan_updated', onPlanUpdated);
+    return () => window.removeEventListener('finance_planner_plan_updated', onPlanUpdated);
+  }, []);
   const isMore = pathname.startsWith("/assumptions") || pathname.startsWith("/cashflow") || pathname.startsWith("/settings") || pathname.startsWith("/budget");
   return (
     <div className="flex min-h-screen">

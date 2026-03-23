@@ -1,9 +1,161 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import QRCode from 'qrcode';
 import { amountForMonth } from '../lib/engine';
 import type { Plan } from '../lib/store';
-import { createDefaultPlan, loadPlan, savePlan } from '../lib/store';
+import { createDefaultPlan, loadPlan, savePlan, savePlanFromSync } from '../lib/store';
+import {
+  syncPlan, pingServer, getLastSynced, getPreSyncBackup, clearPreSyncBackup,
+  relativeTime, LAST_SYNCED_KEY,
+} from '../lib/sync';
+
+// ─── Sync section ─────────────────────────────────────────────────────────────
+
+type SyncState = 'idle' | 'syncing' | 'ok' | 'offline' | 'error';
+
+function SyncSection({ plan, onPlanUpdated }: { plan: Plan; onPlanUpdated: (p: Plan) => void }) {
+  const [state, setState] = useState<SyncState>('idle');
+  const [message, setMessage] = useState('');
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [hostUrls, setHostUrls] = useState<string[]>([]);
+  const [tick, setTick] = useState(0);
+  const backup = getPreSyncBackup();
+
+  // Refresh "X min ago" every 30s
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Listen for sync updates from ClientShell
+  useEffect(() => {
+    function refresh() { setLastSynced(getLastSynced()); }
+    refresh();
+    window.addEventListener('fp_sync_updated', refresh);
+    window.addEventListener(LAST_SYNCED_KEY, refresh);
+    return () => {
+      window.removeEventListener('fp_sync_updated', refresh);
+      window.removeEventListener(LAST_SYNCED_KEY, refresh);
+    };
+  }, []);
+
+  // Fetch host info + build QR code
+  useEffect(() => {
+    async function loadHostInfo() {
+      try {
+        const res = await fetch('/api/sync/host-info');
+        if (!res.ok) return;
+        const { ips, port }: { ips: string[]; port: string } = await res.json();
+        const urls = ips.map(ip => `http://${ip}:${port}`);
+        setHostUrls(urls);
+        if (urls[0]) {
+          const dataUrl = await QRCode.toDataURL(urls[0], { width: 180, margin: 2, color: { dark: '#0f172a', light: '#ffffff' } });
+          setQrDataUrl(dataUrl);
+        }
+      } catch { /* host info unavailable */ }
+    }
+    loadHostInfo();
+  }, []);
+
+  const handleSyncNow = useCallback(async () => {
+    setState('syncing');
+    setMessage('');
+    const serverUrl = window.location.origin;
+    const reachable = await pingServer(serverUrl);
+    if (!reachable) {
+      setState('offline');
+      setMessage('Sync server not reachable.');
+      return;
+    }
+    const result = await syncPlan(plan, serverUrl);
+    if (result.status === 'pulled' && 'plan' in result) {
+      savePlanFromSync(result.plan as Plan);
+      onPlanUpdated(loadPlan());
+    }
+    setState(result.status === 'error' ? 'error' : 'ok');
+    setMessage(result.message);
+    setLastSynced(getLastSynced());
+    setTimeout(() => { setState('idle'); setMessage(''); }, 4000);
+  }, [plan, onPlanUpdated]);
+
+  const handleRestoreBackup = useCallback(() => {
+    if (!backup) return;
+    if (!confirm('Restore the pre-sync backup? This will overwrite your current plan.')) return;
+    savePlan(backup.plan as Plan);
+    onPlanUpdated(loadPlan());
+    clearPreSyncBackup();
+  }, [backup, onPlanUpdated]);
+
+  const dotColor =
+    state === 'syncing' ? 'bg-yellow-400 animate-pulse' :
+    state === 'ok'      ? 'bg-emerald-500' :
+    state === 'offline' || state === 'error' ? 'bg-rose-500' :
+    'bg-slate-300 dark:bg-slate-600';
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium text-slate-900 dark:text-slate-100">WiFi Sync</div>
+          <div className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+            Same-network sync. No cloud. Data stays on your devices.
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className={`inline-block h-2.5 w-2.5 rounded-full ${dotColor}`} />
+          <span className="text-xs text-slate-500 dark:text-slate-400">
+            {lastSynced ? relativeTime(lastSynced) : 'Not synced yet'}
+          </span>
+        </div>
+      </div>
+
+      {message && (
+        <div className={`mt-3 rounded-xl px-3 py-2 text-sm ${state === 'error' || state === 'offline' ? 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'}`}>
+          {message}
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button type="button" onClick={handleSyncNow} disabled={state === 'syncing'}
+          className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50">
+          {state === 'syncing' ? 'Syncing…' : 'Sync Now'}
+        </button>
+        {backup && (
+          <button type="button" onClick={handleRestoreBackup}
+            className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 shadow-sm hover:bg-amber-100 dark:border-amber-800/50 dark:bg-amber-500/10 dark:text-amber-300">
+            Restore pre-sync backup
+          </button>
+        )}
+      </div>
+
+      {(qrDataUrl || hostUrls.length > 0) && (
+        <div className="mt-5 flex flex-wrap items-start gap-5 border-t border-slate-100 pt-5 dark:border-slate-800">
+          {qrDataUrl && (
+            <div className="rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-white">
+              <img src={qrDataUrl} alt="Sync QR code" width={160} height={160} />
+            </div>
+          )}
+          <div className="flex-1 min-w-[180px]">
+            <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">Open on another device</div>
+            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Scan the QR code, or type one of these addresses into any browser on the same WiFi:
+            </div>
+            <div className="mt-2 space-y-1">
+              {hostUrls.map(url => (
+                <div key={url} className="font-mono text-xs font-medium text-blue-600 dark:text-blue-400">{url}</div>
+              ))}
+            </div>
+            <div className="mt-3 text-xs text-slate-400 dark:text-slate-500">
+              Sync is automatic — both devices stay up to date. Newer changes always win.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function downloadText(filename: string, text: string) {
   const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
@@ -186,7 +338,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div>
         <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Settings</div>
-        <div className="text-sm text-slate-500 dark:text-slate-400">Backup, restore, and local-only storage</div>
+        <div className="text-sm text-slate-500 dark:text-slate-400">Appearance, sync, backup, and local-only storage</div>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -194,6 +346,8 @@ export default function SettingsPage() {
         <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">Choose light, dark, or follow your device setting.</div>
         <div className="mt-4"><ThemeToggle /></div>
       </div>
+
+      <SyncSection plan={plan} onPlanUpdated={setPlan} />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Backup</div>

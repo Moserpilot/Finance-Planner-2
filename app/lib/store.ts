@@ -49,6 +49,8 @@ export type Plan = {
   netWorthAccounts: NetWorthAccount[];
   netWorthMode: NetWorthMode;
   budgets: Partial<Record<ExpenseCategory, number>>;
+  /** ISO timestamp of last save — used for last-write-wins sync */
+  savedAt?: string;
 };
 
 const STORAGE_KEY = 'finance_planner_plan_v2';
@@ -149,10 +151,23 @@ export function loadPlan(): Plan {
   }
 }
 
+/** Save a user-initiated change — always stamps a fresh savedAt timestamp. */
 export function savePlan(plan: Plan): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(plan));
+  const stamped: Plan = { ...plan, savedAt: new Date().toISOString() };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(stamped));
   window.dispatchEvent(new Event('finance_planner_plan_updated'));
+}
+
+/**
+ * Save a plan received from the sync server — preserves the remote savedAt so
+ * the next auto-push sees equal timestamps and skips a redundant upload.
+ */
+export function savePlanFromSync(plan: Plan): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(plan));
+  // Use a CustomEvent so ClientShell can tell this apart from a user save
+  window.dispatchEvent(new CustomEvent('finance_planner_plan_updated', { detail: { fromSync: true } }));
 }
 
 export function newNetWorthAccount(name = 'New account'): NetWorthAccount {
