@@ -103,7 +103,7 @@ export function AllocationPie({ slices, currency, title }: Props) {
               <div key={s.key} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5">
                   <span className="inline-block rounded-full" style={{ width: 8, height: 8, backgroundColor: s.color, flexShrink: 0 }} />
-                  <span className="text-slate-600 dark:text-slate-400">{s.label}</span>
+                  <span className="text-slate-900 dark:text-slate-400">{s.label}</span>
                 </div>
                 <div className="flex items-center gap-2 tabular-nums">
                   <span className="text-slate-500 dark:text-slate-400">{pct}%</span>

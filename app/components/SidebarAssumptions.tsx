@@ -61,8 +61,8 @@ export function SidebarAssumptions() {
   return (
     <div className="mt-6 space-y-3">
       <div className="rounded-2xl border border-slate-200 bg-white/70 p-3 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-white/[0.04]">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Quick assumptions</div>
-        <label className="mt-3 block text-xs text-slate-500 dark:text-slate-400">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100">Quick assumptions</div>
+        <label className="mt-3 block text-xs text-slate-900 dark:text-slate-100">
           Goal net worth
           <input
             className="mt-1 w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none dark:border-slate-800 dark:bg-white/[0.04] dark:text-slate-100"
@@ -78,7 +78,7 @@ export function SidebarAssumptions() {
             }}
           />
         </label>
-        <label className="mt-3 block text-xs text-slate-500 dark:text-slate-400">
+        <label className="mt-3 block text-xs text-slate-900 dark:text-slate-100">
           Expected return
           <input
             className="mt-1 w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none dark:border-slate-800 dark:bg-white/[0.04] dark:text-slate-100"

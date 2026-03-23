@@ -74,12 +74,12 @@ export default function CashflowPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Cash Flow Planner</h1>
-          <p className="text-sm text-slate-500">Track recurring, variable, and one-time cash flow month by month.</p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Cash Flow Planner</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Track recurring, variable, and one-time cash flow month by month.</p>
         </div>
         <label className="text-sm">
-          <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">Duration</div>
-          <select className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900" value={months} onChange={(e) => setMonths(Number(e.target.value))}>
+          <div className="mb-1 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Duration</div>
+          <select className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" value={months} onChange={(e) => setMonths(Number(e.target.value))}>
             {[12, 24, 36, 60, 120].map((m) => (
               <option key={m} value={m}>{m} months</option>
             ))}
@@ -107,19 +107,19 @@ export default function CashflowPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 dark:bg-slate-800/60">
               <tr>
-                <th className="px-3 py-2 text-left">Month</th>
-                <th className="px-3 py-2 text-right">Recurring Income</th>
-                <th className="px-3 py-2 text-right">One-time Income</th>
-                <th className="px-3 py-2 text-right">Recurring Expenses</th>
-                <th className="px-3 py-2 text-right">One-time Expenses</th>
-                <th className="px-3 py-2 text-right">Net</th>
-                <th className="px-3 py-2 text-right">Cumulative</th>
+                <th className="px-3 py-2 text-left text-slate-900 dark:text-slate-100">Month</th>
+                <th className="px-3 py-2 text-right text-slate-900 dark:text-slate-100">Recurring Income</th>
+                <th className="px-3 py-2 text-right text-slate-900 dark:text-slate-100">One-time Income</th>
+                <th className="px-3 py-2 text-right text-slate-900 dark:text-slate-100">Recurring Expenses</th>
+                <th className="px-3 py-2 text-right text-slate-900 dark:text-slate-100">One-time Expenses</th>
+                <th className="px-3 py-2 text-right text-slate-900 dark:text-slate-100">Net</th>
+                <th className="px-3 py-2 text-right text-slate-900 dark:text-slate-100">Cumulative</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.monthISO} className="border-t border-slate-100 dark:border-slate-800">
-                  <td className="px-3 py-2">{monthLabel(r.monthISO)}</td>
+                  <td className="px-3 py-2 text-slate-900 dark:text-slate-100">{monthLabel(r.monthISO)}</td>
                   <td className="px-3 py-2 text-right text-emerald-600">{money(r.recurringIncome, currency)}</td>
                   <td className="px-3 py-2 text-right text-emerald-600">{money(r.oneTimeIncome, currency)}</td>
                   <td className="px-3 py-2 text-right text-rose-600">{money(r.recurringExpenses, currency)}</td>

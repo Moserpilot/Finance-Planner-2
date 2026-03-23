@@ -22,7 +22,7 @@ function IconMore({ active }: { active: boolean }) {
 
 function NavLink({ href, label, active }: { href: string; label: string; active: boolean }) {
   return (
-    <Link href={href} className={"flex items-center rounded-xl px-3 py-2 text-sm font-medium transition "+(active?"bg-blue-50 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300":"text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/10")}>
+    <Link href={href} className={"flex items-center rounded-xl px-3 py-2 text-sm font-medium transition "+(active?"bg-blue-50 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300":"text-slate-900 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-white/10")}>
       {label}
     </Link>
   );
@@ -42,6 +42,7 @@ function MoreMenu({ isMore, onClose }: { isMore: boolean; onClose: () => void })
     <div className="fixed inset-0 z-40 flex flex-col justify-end md:hidden" onClick={onClose}>
       <div className="mx-3 mb-20 rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900" onClick={e => e.stopPropagation()}>
         <div className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">More</div>
+        <Link href="/budget" onClick={onClose} className="flex items-center px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800">Budget</Link>
         <Link href="/assumptions" onClick={onClose} className="flex items-center px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800">Assumptions</Link>
         <Link href="/cashflow" onClick={onClose} className="flex items-center px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800">Cashflow</Link>
         <Link href="/settings" onClick={onClose} className="flex items-center px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800 rounded-b-2xl">Settings</Link>
@@ -55,7 +56,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [showMore, setShowMore] = useState(false);
   useEffect(() => { setMounted(true); }, []);
-  const isMore = pathname.startsWith("/assumptions") || pathname.startsWith("/cashflow") || pathname.startsWith("/settings");
+  const isMore = pathname.startsWith("/assumptions") || pathname.startsWith("/cashflow") || pathname.startsWith("/settings") || pathname.startsWith("/budget");
   return (
     <div className="flex min-h-screen">
       <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-white/[0.04]">
@@ -67,6 +68,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
             <NavLink href="/" label="Dashboard" active={mounted && pathname==="/"} />
             <NavLink href="/income" label="Income" active={mounted && pathname.startsWith("/income")} />
             <NavLink href="/expenses" label="Expenses" active={mounted && pathname.startsWith("/expenses")} />
+            <NavLink href="/budget" label="Budget" active={mounted && pathname.startsWith("/budget")} />
             <NavLink href="/net-worth" label="Net Worth" active={mounted && pathname.startsWith("/net-worth")} />
             <NavLink href="/assumptions" label="Assumptions" active={mounted && pathname.startsWith("/assumptions")} />
             <NavLink href="/cashflow" label="Cashflow" active={mounted && pathname.startsWith("/cashflow")} />

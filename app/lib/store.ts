@@ -1,5 +1,8 @@
 export type DatedAmount = { monthISO: string; amount: number };
 
+export const EXPENSE_CATEGORIES = ['Housing','Food & Dining','Transport','Healthcare','Entertainment','Shopping','Other'] as const;
+export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
+
 export type RecurringItem = {
   id: string;
   kind: 'income' | 'expense';
@@ -9,6 +12,7 @@ export type RecurringItem = {
   changes: DatedAmount[];
   overrides: DatedAmount[];
   endMonthISO?: string | null;
+  category?: ExpenseCategory;
 };
 
 export type OneTimeItem = {
@@ -17,6 +21,7 @@ export type OneTimeItem = {
   name: string;
   monthISO: string;
   amount: number;
+  category?: ExpenseCategory;
 };
 
 export type NetWorthAccountType = 'cash' | 'taxable' | 'retirement' | 'other';
@@ -43,6 +48,7 @@ export type Plan = {
   oneTimeExpenses: OneTimeItem[];
   netWorthAccounts: NetWorthAccount[];
   netWorthMode: NetWorthMode;
+  budgets: Partial<Record<ExpenseCategory, number>>;
 };
 
 const STORAGE_KEY = 'finance_planner_plan_v2';
@@ -65,6 +71,7 @@ export function createDefaultPlan(): Plan {
       { id: 'acct_roth', name: 'Roth IRA', type: 'retirement', balances: [] },
     ],
     netWorthMode: 'hybrid',
+    budgets: {},
   };
 }
 
@@ -133,6 +140,9 @@ export function loadPlan(): Plan {
       oneTimeExpenses: ensureArray(p.oneTimeExpenses),
       netWorthAccounts: normalizeAccounts(p.netWorthAccounts),
       netWorthMode: normalizeMode(p.netWorthMode),
+      budgets: (typeof p.budgets === 'object' && p.budgets !== null && !Array.isArray(p.budgets))
+        ? Object.fromEntries(EXPENSE_CATEGORIES.filter(c => Number.isFinite(Number((p.budgets as any)[c]))).map(c => [c, Number((p.budgets as any)[c])]))
+        : {},
     };
   } catch {
     return defaults;

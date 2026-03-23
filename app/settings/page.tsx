@@ -16,6 +16,46 @@ function downloadText(filename: string, text: string) {
   URL.revokeObjectURL(url);
 }
 
+type ThemeMode = 'system' | 'light' | 'dark';
+
+function ThemeToggle() {
+  const [theme, setTheme] = useState<ThemeMode>('system');
+  useEffect(() => {
+    const stored = localStorage.getItem('fp_theme');
+    if (stored === 'light' || stored === 'dark') setTheme(stored);
+    else setTheme('system');
+  }, []);
+  function apply(t: ThemeMode) {
+    setTheme(t);
+    if (t === 'dark') {
+      localStorage.setItem('fp_theme', 'dark');
+      document.documentElement.classList.add('dark');
+    } else if (t === 'light') {
+      localStorage.setItem('fp_theme', 'light');
+      document.documentElement.classList.remove('dark');
+    } else {
+      localStorage.removeItem('fp_theme');
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.classList.add('dark');
+      else document.documentElement.classList.remove('dark');
+    }
+  }
+  const options: { value: ThemeMode; label: string; icon: string }[] = [
+    { value: 'system', label: 'System', icon: '💻' },
+    { value: 'light',  label: 'Light',  icon: '☀️' },
+    { value: 'dark',   label: 'Dark',   icon: '🌙' },
+  ];
+  return (
+    <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-950">
+      {options.map(o => (
+        <button key={o.value} onClick={() => apply(o.value)}
+          className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all ${theme === o.value ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-100' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+          <span>{o.icon}</span>{o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const [plan, setPlan] = useState<Plan | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -75,6 +115,12 @@ export default function SettingsPage() {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Appearance</div>
+        <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">Choose light, dark, or follow your device setting.</div>
+        <div className="mt-4"><ThemeToggle /></div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Backup</div>
         <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Your plan is stored locally in your browser. Use backups to move between devices.
@@ -85,7 +131,7 @@ export default function SettingsPage() {
             Download backup (.json)
           </button>
           <button type="button" onClick={() => fileRef.current?.click()}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5">
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-white/5">
             Import backup
           </button>
           <button type="button" onClick={resetAll}
@@ -100,7 +146,7 @@ export default function SettingsPage() {
             e.currentTarget.value = '';
           }}
         />
-        {status ? <div className="mt-3 text-sm text-slate-700 dark:text-slate-200">{status}</div> : null}
+        {status ? <div className="mt-3 text-sm text-slate-900 dark:text-slate-100">{status}</div> : null}
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -109,8 +155,8 @@ export default function SettingsPage() {
           This app does not send data to any server. All data is stored locally in your browser.
         </div>
         <div className="mt-4">
-          <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Current plan JSON (read-only)</div>
-          <pre className="mt-2 max-h-[260px] overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-200">
+          <div className="text-xs font-medium text-slate-900 dark:text-slate-400">Current plan JSON (read-only)</div>
+          <pre className="mt-2 max-h-[260px] overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-900 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-100">
             {json}
           </pre>
         </div>

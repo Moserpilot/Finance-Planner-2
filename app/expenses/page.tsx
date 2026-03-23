@@ -2,7 +2,8 @@
 import{useEffect,useMemo,useState}from'react';
 import{amountForMonth}from'../lib/engine';
 import type{DatedAmount,Plan,RecurringItem}from'../lib/store';
-import{loadPlan,newOneTimeItem,newRecurringItem,savePlan}from'../lib/store';
+import{EXPENSE_CATEGORIES,loadPlan,newOneTimeItem,newRecurringItem,savePlan}from'../lib/store';
+import type{ExpenseCategory}from'../lib/store';
 function safeCurrency(c:string){const x=(c||'').trim().toUpperCase();return/^[A-Z]{3}$/.test(x)?x:'USD';}
 function money(n:number,c:string){return new Intl.NumberFormat('en-US',{style:'currency',currency:safeCurrency(c),maximumFractionDigits:0}).format(Number.isFinite(n)?n:0);}
 function addMonthsISO(s:string,add:number){const ok=/^\d{4}-\d{2}$/.test(s);const y0=ok?Number(s.slice(0,4)):2026;const m0=ok?Number(s.slice(5,7))-1:0;const t=y0*12+m0+add;return Math.floor(t/12)+'-'+String(t%12+1).padStart(2,'0');}
@@ -40,8 +41,9 @@ export default function ExpensesPage(){
           <button className='rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700' onClick={()=>save({...plan,oneTimeExpenses:[...oe,newOneTimeItem('expense',editMonth)]})}>+ One-time</button>
         </div>
         <div className='space-y-3'>
-          {re.map(item=>{const ma=amountForMonth(item,editMonth);return(<div key={item.id} className='rounded-xl border border-slate-200 p-3 dark:border-slate-800'><div className='grid gap-2 md:grid-cols-6'>
+          {re.map(item=>{const ma=amountForMonth(item,editMonth);return(<div key={item.id} className='rounded-xl border border-slate-200 p-3 dark:border-slate-800'><div className='grid gap-2 md:grid-cols-7'>
             <input className={inp} value={item.name} onChange={e=>updRec(item.id,{name:e.target.value})}/>
+            <select className={inp} value={item.category||''} onChange={e=>updRec(item.id,{category:(e.target.value as ExpenseCategory)||undefined})}><option value=''>Category</option>{EXPENSE_CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select>
             <input className={inp} type='text' defaultValue={money(item.defaultAmount,cur)} key={'d'+item.id+item.defaultAmount} onBlur={e=>updRec(item.id,{defaultAmount:asNum(e.target.value)})}/>
             <select className={inp} value={item.behavior} onChange={e=>updRec(item.id,{behavior:e.target.value==='monthOnly'?'monthOnly':'carryForward'})}><option value='carryForward'>Carry-forward</option><option value='monthOnly'>Month-only</option></select>
             <select className={inp} value={item.endMonthISO||''} onChange={e=>updRec(item.id,{endMonthISO:e.target.value||null})}><option value=''>No end</option>{monthOptions.map(m=><option key={m} value={m}>{m}</option>)}</select>
@@ -54,8 +56,9 @@ export default function ExpensesPage(){
       <div className='rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900'>
         <div className='text-sm font-medium text-slate-900 dark:text-slate-100 mb-3'>One-time expenses</div>
         <div className='space-y-2'>
-          {oe.map(item=>(<div key={item.id} className='grid gap-2 md:grid-cols-4'>
+          {oe.map(item=>(<div key={item.id} className='grid gap-2 md:grid-cols-5'>
             <input className={inp} value={item.name} onChange={e=>save({...plan,oneTimeExpenses:oe.map(x=>x.id===item.id?{...x,name:e.target.value}:x)})}/>
+            <select className={inp} value={item.category||''} onChange={e=>save({...plan,oneTimeExpenses:oe.map(x=>x.id===item.id?{...x,category:(e.target.value as ExpenseCategory)||undefined}:x)})}><option value=''>Category</option>{EXPENSE_CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select>
             <select className={inp} value={item.monthISO} onChange={e=>save({...plan,oneTimeExpenses:oe.map(x=>x.id===item.id?{...x,monthISO:e.target.value}:x)})}>{monthOptions.map(m=><option key={m} value={m}>{m}</option>)}</select>
             <input className={inp} type='text' defaultValue={money(item.amount,cur)} key={'ot'+item.id+item.amount} onBlur={e=>save({...plan,oneTimeExpenses:oe.map(x=>x.id===item.id?{...x,amount:asNum(e.target.value)}:x)})}/>
             <button className='rounded-xl border border-rose-200 px-2 py-2 text-sm text-rose-600' onClick={()=>save({...plan,oneTimeExpenses:oe.filter(x=>x.id!==item.id)})}>Remove</button>
