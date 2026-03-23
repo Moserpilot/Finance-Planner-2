@@ -31,17 +31,26 @@ function upsertDated(arr: { monthISO: string; amount: number }[], monthISO: stri
 const TYPE_OPTIONS: NetWorthAccountType[] = ['cash', 'taxable', 'retirement', 'other'];
 
 export default function NetWorthPage() {
-  const [plan, setPlan] = useState<Plan>(() => loadPlan());
-  const [editMonthISO, setEditMonthISO] = useState(
-    plan.netWorthViewMonthISO || plan.startMonthISO || '2026-01'
-  );
+  const [plan, setPlan] = useState<Plan | null>(null);
+  const [editMonthISO, setEditMonthISO] = useState('');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const p = loadPlan();
+    setPlan(p);
+    setEditMonthISO(p.netWorthViewMonthISO || p.startMonthISO || '2026-01');
+    setMounted(true);
+  }, []);
 
   function update(p: Plan) { setPlan(p); savePlan(p); }
-  const currency = plan.currency || 'USD';
+  const currency = plan?.currency || 'USD';
 
   const slices = useMemo(() => {
+    if (!plan) return [];
     return buildAllocation(plan, editMonthISO);
   }, [plan, editMonthISO]);
+
+  if (!mounted || !plan) return <div className="min-h-screen bg-slate-50 dark:bg-black" />;
 
   return (
     <div className="space-y-6">
@@ -61,7 +70,7 @@ export default function NetWorthPage() {
                 onChange={(e) => {
                   const monthISO = e.target.value;
                   setEditMonthISO(monthISO);
-                  setPlan((prev) => { const updated = { ...prev, netWorthViewMonthISO: monthISO }; savePlan(updated); return updated; });
+                  setPlan((prev) => { if (!prev) return prev; const updated = { ...prev, netWorthViewMonthISO: monthISO }; savePlan(updated); return updated; });
                 }}
               />
             </label>
