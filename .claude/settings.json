@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(cd C:\\Users\\scheb\\AppData:*)",
+      "Bash(cd C:\\Users\\scheb\\Documents:*)",
+      "Bash(cd C:\\Users\\scheb\\Downloads:*)",
+      "Bash(cd C:\\Users\\scheb\\Pictures:*)",
+      "Bash(cd C:\\Users\\scheb\\Desktop:*)",
+      "Bash(cat C:\\Users\\scheb\\AppData:*)",
+      "Bash(cat C:\\Users\\scheb\\Documents:*)",
+      "Bash(type C:\\Users\\scheb\\AppData:*)",
+      "Bash(type C:\\Users\\scheb\\Documents:*)"
+    ]
+  }
+}
