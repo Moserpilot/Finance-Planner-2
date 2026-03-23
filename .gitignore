@@ -22,3 +22,6 @@ Thumbs.db
 
 # Local sync data (personal financial data — never commit)
 .sync/
+
+# Claude Code internal files
+.claude/
