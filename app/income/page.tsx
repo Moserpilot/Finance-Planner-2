@@ -138,12 +138,14 @@ function OneTimeIncomeCard({ item, currency, monthOptions, onChange, onDelete }:
   onDelete: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [amtDraft, setAmtDraft] = useState(String(item.amount || ''));
+  const [amtDraft, setAmtDraft] = useState(item.amount > 0 ? money(item.amount, currency) : '');
   const [saved, setSaved] = useState(false);
   const inp = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100';
 
   function saveAmt() {
-    onChange({ amount: asNum(amtDraft) });
+    const n = asNum(amtDraft);
+    onChange({ amount: n });
+    setAmtDraft(n > 0 ? money(n, currency) : '');
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
   }
@@ -180,7 +182,7 @@ function OneTimeIncomeCard({ item, currency, monthOptions, onChange, onDelete }:
             <input className={inp} type="text" inputMode="decimal" value={amtDraft}
               placeholder="0"
               onChange={e => setAmtDraft(e.target.value)}
-              onFocus={e => e.target.select()}
+              onFocus={e => { setAmtDraft(String(asNum(amtDraft) || '')); e.target.select(); }}
               onBlur={saveAmt} />
           </div>
           <button

@@ -297,8 +297,8 @@ export default function DashboardPage() {
   const asOfMonth = plan.netWorthMode === 'projection' ? startMonth : (latestSnap ?? startMonth);
   const rawKpi = netWorthAsOf(plan, asOfMonth)?.netWorth ?? 0;
   const oneTimeKpiAdj = plan.netWorthMode !== 'snapshot'
-    ? (plan.oneTimeIncome || []).filter(x => x.monthISO === asOfMonth && Number.isFinite(x.amount)).reduce((s, x) => s + x.amount, 0)
-    - (plan.oneTimeExpenses || []).filter(x => x.monthISO === asOfMonth && Number.isFinite(x.amount)).reduce((s, x) => s + x.amount, 0)
+    ? (plan.oneTimeIncome || []).filter(x => x.monthISO >= startMonth && x.monthISO <= thisMonthISO && Number.isFinite(x.amount)).reduce((s, x) => s + x.amount, 0)
+    - (plan.oneTimeExpenses || []).filter(x => x.monthISO >= startMonth && x.monthISO <= thisMonthISO && Number.isFinite(x.amount)).reduce((s, x) => s + x.amount, 0)
     : 0;
   const netWorthKpi = rawKpi + oneTimeKpiAdj;
 
