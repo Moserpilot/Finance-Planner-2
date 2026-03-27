@@ -248,20 +248,21 @@ type ThemeMode = 'system' | 'light' | 'dark';
 function ThemeToggle() {
   const [theme, setTheme] = useState<ThemeMode>('system');
   useEffect(() => {
-    const stored = localStorage.getItem('fp_theme');
-    if (stored === 'light' || stored === 'dark') setTheme(stored);
+    const stored = localStorage.getItem('fp_dark_mode');
+    if (stored === '1') setTheme('dark');
+    else if (stored === '0') setTheme('light');
     else setTheme('system');
   }, []);
   function apply(t: ThemeMode) {
     setTheme(t);
     if (t === 'dark') {
-      localStorage.setItem('fp_theme', 'dark');
+      localStorage.setItem('fp_dark_mode', '1');
       document.documentElement.classList.add('dark');
     } else if (t === 'light') {
-      localStorage.setItem('fp_theme', 'light');
+      localStorage.setItem('fp_dark_mode', '0');
       document.documentElement.classList.remove('dark');
     } else {
-      localStorage.removeItem('fp_theme');
+      localStorage.removeItem('fp_dark_mode');
       if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.classList.add('dark');
       else document.documentElement.classList.remove('dark');
     }

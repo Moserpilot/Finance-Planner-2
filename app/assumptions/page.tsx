@@ -81,7 +81,7 @@ export default function AssumptionsPage() {
                 setGoalDraft(new Intl.NumberFormat('en-US', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(v));
               }}
             />
-            <div className="mt-1.5 text-xs text-slate-400">Target net worth you want to reach</div>
+            <div className="mt-1.5 text-xs text-slate-500">Target net worth you want to reach</div>
           </div>
 
           <div>
@@ -97,7 +97,7 @@ export default function AssumptionsPage() {
                 setRetDraft(v + '%');
               }}
             />
-            <div className="mt-1.5 text-xs text-slate-400">Typical long-term stock market average is 7–10% annually</div>
+            <div className="mt-1.5 text-xs text-slate-500">Typical long-term stock market average is 7–10% annually</div>
           </div>
         </div>
 
@@ -135,7 +135,7 @@ export default function AssumptionsPage() {
               value={plan.startMonthISO}
               onChange={e => update({ startMonthISO: e.target.value })}
             />
-            <div className="mt-1.5 text-xs text-slate-400">The month your plan begins tracking from</div>
+            <div className="mt-1.5 text-xs text-slate-500">The month your plan begins tracking from</div>
           </div>
         </div>
       </div>
@@ -160,7 +160,7 @@ export default function AssumptionsPage() {
           <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 p-3.5 dark:border-slate-700 dark:bg-slate-800">
             <div className="text-sm text-slate-600 dark:text-slate-400">{modeHelp}</div>
           </div>
-          <div className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+          <div className="mt-2 text-xs text-slate-500 dark:text-slate-500">
             💡 Most people should use <span className="font-medium text-slate-600 dark:text-slate-400">Smart tracking</span> — it uses projections but self-corrects when you update real balances.
           </div>
         </div>

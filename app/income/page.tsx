@@ -276,7 +276,14 @@ export default function IncomePage() {
     setMounted(true);
   }, []);
 
-  function save(p: Plan) { setPlan(p); savePlan(p); }
+  function saveUpdate(fn: (p: Plan) => Plan) {
+    setPlan(prev => {
+      if (!prev) return prev;
+      const updated = fn(prev);
+      savePlan(updated);
+      return updated;
+    });
+  }
 
   const cur = safeCurrency(plan?.currency || 'USD');
   const monthOptions = useMemo(() =>
@@ -290,13 +297,13 @@ export default function IncomePage() {
   const oi = plan.oneTimeIncome || [];
 
   const updRec = (id: string, patch: Partial<RecurringItem>) =>
-    save({ ...plan, income: ri.map(x => x.id === id ? { ...x, ...patch } : x) });
+    saveUpdate(p => ({ ...p, income: (p.income || []).map(x => x.id === id ? { ...x, ...patch } : x) }));
 
   const setAmt = (item: RecurringItem, amount: number) => {
     if (item.behavior === 'carryForward')
-      updRec(item.id, { changes: upsert(item.changes || [], editMonth, amount) });
+      saveUpdate(p => ({ ...p, income: (p.income || []).map(x => x.id === item.id ? { ...x, changes: upsert(x.changes || [], editMonth, amount) } : x) }));
     else
-      updRec(item.id, { overrides: upsert(item.overrides || [], editMonth, amount) });
+      saveUpdate(p => ({ ...p, income: (p.income || []).map(x => x.id === item.id ? { ...x, overrides: upsert(x.overrides || [], editMonth, amount) } : x) }));
   };
 
   const recTotal = ri.reduce((s, it) => s + amountForMonth(it, editMonth), 0);
@@ -343,7 +350,7 @@ export default function IncomePage() {
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Recurring Income</div>
               <button
                 className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-                onClick={() => save({ ...plan, income: [...ri, newRecurringItem('income')] })}>
+                onClick={() => saveUpdate(p => ({ ...p, income: [...(p.income || []), newRecurringItem('income')] }))}>
                 + Add Income
               </button>
             </div>
@@ -356,7 +363,7 @@ export default function IncomePage() {
                   currency={cur}
                   monthOptions={monthOptions}
                   onUpdate={patch => updRec(item.id, patch)}
-                  onDelete={() => save({ ...plan, income: ri.filter(x => x.id !== item.id) })}
+                  onDelete={() => saveUpdate(p => ({ ...p, income: (p.income || []).filter(x => x.id !== item.id) }))}
                   onSetAmt={setAmt}
                 />
               ))}
@@ -373,8 +380,8 @@ export default function IncomePage() {
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">One-time Income</div>
               <button
-                className="rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                onClick={() => save({ ...plan, oneTimeIncome: [...oi, newOneTimeItem('income', editMonth)] })}>
+                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                onClick={() => saveUpdate(p => ({ ...p, oneTimeIncome: [...(p.oneTimeIncome || []), newOneTimeItem('income', editMonth)] }))}>
                 + Add One-time
               </button>
             </div>
@@ -385,8 +392,8 @@ export default function IncomePage() {
                   item={item}
                   currency={cur}
                   monthOptions={monthOptions}
-                  onChange={patch => save({ ...plan, oneTimeIncome: oi.map(x => x.id === item.id ? { ...x, ...patch } : x) })}
-                  onDelete={() => save({ ...plan, oneTimeIncome: oi.filter(x => x.id !== item.id) })}
+                  onChange={patch => saveUpdate(p => ({ ...p, oneTimeIncome: (p.oneTimeIncome || []).map(x => x.id === item.id ? { ...x, ...patch } : x) }))}
+                  onDelete={() => saveUpdate(p => ({ ...p, oneTimeIncome: (p.oneTimeIncome || []).filter(x => x.id !== item.id) }))}
                 />
               ))}
               {!oi.length && (

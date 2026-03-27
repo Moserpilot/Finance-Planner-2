@@ -34,13 +34,13 @@ function monthLabel(iso: string) {
 }
 
 const HousingIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
     <polyline points="9 22 9 12 15 12 15 22"/>
   </svg>
 );
 const FoodIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
     <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
     <line x1="6" y1="1" x2="6" y2="4"/>
@@ -49,7 +49,7 @@ const FoodIcon = () => (
   </svg>
 );
 const TransportIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <rect x="1" y="3" width="15" height="13" rx="2"/>
     <path d="M16 8h4l3 5v3h-7V8z"/>
     <circle cx="5.5" cy="18.5" r="2.5"/>
@@ -57,24 +57,24 @@ const TransportIcon = () => (
   </svg>
 );
 const HealthIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
   </svg>
 );
 const EntertainIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <polygon points="5 3 19 12 5 21 5 3"/>
   </svg>
 );
 const ShoppingIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
     <line x1="3" y1="6" x2="21" y2="6"/>
     <path d="M16 10a4 4 0 0 1-8 0"/>
   </svg>
 );
 const OtherIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="1"/>
     <circle cx="19" cy="12" r="1"/>
     <circle cx="5" cy="12" r="1"/>
@@ -130,7 +130,7 @@ function BudgetSummaryPanel({ stats, currency }: { stats: { cat: string; spent: 
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-1.5">
                     <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">{s.cat}</span>
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-100 truncate">{s.cat}</span>
                   </div>
                   <span className="text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100 ml-2 flex-shrink-0">{money(s.spent, currency)}</span>
                 </div>
@@ -315,7 +315,7 @@ export default function BudgetPage() {
               return (
                 <div
                   key={cat}
-                  className={`group grid gap-4 items-center px-6 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors${!isLast ? ' border-b border-slate-100 dark:border-slate-800' : ''}`}
+                  className={`group grid gap-4 items-center px-6 py-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors${!isLast ? ' border-b border-slate-100 dark:border-slate-800' : ''}`}
                   style={{ gridTemplateColumns: '1fr 6rem 6rem 6rem' }}
                 >
                   {/* Category name + progress bar */}

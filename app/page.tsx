@@ -351,7 +351,7 @@ export default function DashboardPage() {
       <div className="rounded-2xl overflow-hidden shadow-sm" style={{background:'linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 60%,#2563eb 100%)'}}>
         <div className="px-6 py-5 flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-xs font-medium text-blue-200 mb-1 uppercase tracking-widest">Net Worth</div>
+            <div className="text-sm font-semibold text-blue-100 mb-1 uppercase tracking-widest">Net Worth</div>
             <div className="text-5xl font-bold tracking-tight tabular-nums text-white">
               {money(netWorthKpi, cur)}
             </div>
@@ -378,8 +378,8 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-xs text-blue-200">of {money(goal, cur)}</div>
-                <div className="text-xs text-blue-200 mt-0.5">goal</div>
+                <div className="text-sm font-medium text-blue-100">of {money(goal, cur)}</div>
+                <div className="text-sm text-blue-100 mt-0.5">goal</div>
                 {monthsToGoal !== null && monthsToGoal > 0 && (
                   <div className="text-sm font-bold text-emerald-300 mt-1">
                     {monthsToGoal < 12 ? `${monthsToGoal}mo` : `${Math.floor(monthsToGoal / 12)}y ${monthsToGoal % 12}mo`} to go
