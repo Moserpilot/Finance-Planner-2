@@ -351,8 +351,8 @@ export default function DashboardPage() {
       <div className="rounded-2xl overflow-hidden shadow-sm" style={{background:'linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 60%,#2563eb 100%)'}}>
         <div className="px-6 py-5 flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-blue-100 mb-1 uppercase tracking-widest">Net Worth</div>
-            <div className="text-5xl font-bold tracking-tight tabular-nums text-white">
+            <div className="text-base font-semibold text-blue-100 mb-1 uppercase tracking-widest">Net Worth</div>
+            <div className="text-6xl font-bold tracking-tight tabular-nums text-white">
               {money(netWorthKpi, cur)}
             </div>
             <div className="mt-2 flex items-center gap-2 flex-wrap">

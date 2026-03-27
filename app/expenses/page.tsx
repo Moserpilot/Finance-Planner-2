@@ -142,7 +142,7 @@ function ExpenseCard({ item, editMonth, currency, monthOptions, onUpdate, onDele
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
       <div
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
         onClick={() => setExpanded(e => !e)}
       >
         <span className="text-lg flex-shrink-0">{expenseIcon(item.name, item.category)}</span>
@@ -237,7 +237,7 @@ function OneTimeExpenseCard({ item, currency, monthOptions, onChange, onDelete }
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
       <div
-        className="flex items-center gap-3 p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+        className="flex items-center gap-3 p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
         onClick={() => setExpanded(e => !e)}
       >
         <span className="text-2xl flex-shrink-0">{expenseIcon(item.name, item.category)}</span>
@@ -285,7 +285,7 @@ function OneTimeExpenseCard({ item, currency, monthOptions, onChange, onDelete }
               onBlur={saveAmt} />
           </div>
           <button
-            className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800 transition-colors"
+            className="w-full rounded-xl bg-blue-600 py-3.5 text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800 transition-colors"
             onClick={saveAmt}>
             {saved ? '✓ Saved' : 'Save'}
           </button>
