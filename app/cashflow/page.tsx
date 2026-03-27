@@ -37,9 +37,18 @@ function monthLabel(monthISO: string) {
 export default function CashflowPage() {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [months, setMonths] = useState(24);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setPlan(loadPlan());
+    function load() { setPlan(loadPlan()); }
+    load();
+    setMounted(true);
+    window.addEventListener('finance_planner_plan_updated', load);
+    window.addEventListener('storage', load);
+    return () => {
+      window.removeEventListener('finance_planner_plan_updated', load);
+      window.removeEventListener('storage', load);
+    };
   }, []);
 
   const rows = useMemo(() => {
@@ -57,7 +66,7 @@ export default function CashflowPage() {
     });
   }, [plan, months]);
 
-  if (!plan) return <div className="text-sm text-slate-500">Loading…</div>;
+  if (!mounted || !plan) return <div className="min-h-screen bg-slate-50 dark:bg-black" />;
 
   const currency = safeCurrency(plan.currency);
   const totals = rows.reduce(
@@ -87,45 +96,45 @@ export default function CashflowPage() {
         </label>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Total Income</div>
-          <div className="mt-1 text-xl font-semibold text-emerald-600">{money(totals.income, currency)}</div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Total Income</div>
+          <div className="mt-1.5 text-2xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{money(totals.income, currency)}</div>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Total Expenses</div>
-          <div className="mt-1 text-xl font-semibold text-rose-600">{money(totals.expenses, currency)}</div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Total Expenses</div>
+          <div className="mt-1.5 text-2xl font-semibold tabular-nums text-rose-600 dark:text-rose-400">{money(totals.expenses, currency)}</div>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Net</div>
-          <div className={`mt-1 text-xl font-semibold ${totals.net >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{money(totals.net, currency)}</div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Net Cash Flow</div>
+          <div className={`mt-1.5 text-2xl font-semibold tabular-nums ${totals.net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{money(totals.net, currency)}</div>
         </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/60">
+            <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800 shadow-sm">
               <tr>
-                <th className="px-3 py-2 text-left text-slate-900 dark:text-slate-100">Month</th>
-                <th className="px-3 py-2 text-right text-slate-900 dark:text-slate-100">Recurring Income</th>
-                <th className="px-3 py-2 text-right text-slate-900 dark:text-slate-100">One-time Income</th>
-                <th className="px-3 py-2 text-right text-slate-900 dark:text-slate-100">Recurring Expenses</th>
-                <th className="px-3 py-2 text-right text-slate-900 dark:text-slate-100">One-time Expenses</th>
-                <th className="px-3 py-2 text-right text-slate-900 dark:text-slate-100">Net</th>
-                <th className="px-3 py-2 text-right text-slate-900 dark:text-slate-100">Cumulative</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Month</th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Rec. Income</th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">One-time Inc.</th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Rec. Expenses</th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">One-time Exp.</th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Net</th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Running Total</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.monthISO} className="border-t border-slate-100 dark:border-slate-800">
-                  <td className="px-3 py-2 text-slate-900 dark:text-slate-100">{monthLabel(r.monthISO)}</td>
-                  <td className="px-3 py-2 text-right text-emerald-600">{money(r.recurringIncome, currency)}</td>
-                  <td className="px-3 py-2 text-right text-emerald-600">{money(r.oneTimeIncome, currency)}</td>
-                  <td className="px-3 py-2 text-right text-rose-600">{money(r.recurringExpenses, currency)}</td>
-                  <td className="px-3 py-2 text-right text-rose-600">{money(r.oneTimeExpenses, currency)}</td>
-                  <td className={`px-3 py-2 text-right font-medium ${r.net >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{money(r.net, currency)}</td>
-                  <td className={`px-3 py-2 text-right font-medium ${r.cum >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>{money(r.cum, currency)}</td>
+                <tr key={r.monthISO} className={`border-t border-slate-100 dark:border-slate-800 ${r.net < 0 ? 'bg-rose-50/30 dark:bg-rose-900/10' : ''}`}>
+                  <td className="px-4 py-2.5 text-slate-900 dark:text-slate-100 font-medium">{monthLabel(r.monthISO)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{money(r.recurringIncome, currency)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{r.oneTimeIncome > 0 ? money(r.oneTimeIncome, currency) : <span className="text-slate-300 dark:text-slate-700">—</span>}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-rose-600 dark:text-rose-400">{money(r.recurringExpenses, currency)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-rose-600 dark:text-rose-400">{r.oneTimeExpenses > 0 ? money(r.oneTimeExpenses, currency) : <span className="text-slate-300 dark:text-slate-700">—</span>}</td>
+                  <td className={`px-4 py-2.5 text-right tabular-nums font-semibold ${r.net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{money(r.net, currency)}</td>
+                  <td className={`px-4 py-2.5 text-right tabular-nums font-semibold ${r.cum >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'}`}>{money(r.cum, currency)}</td>
                 </tr>
               ))}
             </tbody>

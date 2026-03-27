@@ -30,7 +30,7 @@ export function NetWorthChart({currency,series,startMonthISO,heightPx=500,goalNe
     return()=>window.removeEventListener('resize',onResize);
   },[]);
   const VH=Math.max(300,heightPx-48);
-  const pad={l:80,r:12,t:18,b:76};
+  const pad={l:80,r:12,t:18,b:88};
   const chart=useMemo(()=>{
     const VW=svgW;
     const vals=series.map(p=>p.netWorth);

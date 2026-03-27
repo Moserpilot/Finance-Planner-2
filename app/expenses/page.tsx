@@ -224,10 +224,15 @@ function OneTimeExpenseCard({ item, currency, monthOptions, onChange, onDelete }
   onDelete: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [amtDraft, setAmtDraft] = useState(money(item.amount, currency));
+  const [amtDraft, setAmtDraft] = useState(String(item.amount || ''));
+  const [saved, setSaved] = useState(false);
   const inp = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100';
   const color = CATEGORY_COLORS[item.category || ''] || '#64748b';
-  function saveAmt() { onChange({ amount: asNum(amtDraft) }); }
+  function saveAmt() {
+    onChange({ amount: asNum(amtDraft) });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  }
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
@@ -273,14 +278,16 @@ function OneTimeExpenseCard({ item, currency, monthOptions, onChange, onDelete }
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Amount</label>
-            <input className={inp} type="text" value={amtDraft}
+            <input className={inp} type="text" inputMode="decimal" value={amtDraft}
+              placeholder="0"
               onChange={e => setAmtDraft(e.target.value)}
+              onFocus={e => e.target.select()}
               onBlur={saveAmt} />
           </div>
           <button
-            className="w-full rounded-xl bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+            className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800 transition-colors"
             onClick={saveAmt}>
-            Save
+            {saved ? '✓ Saved' : 'Save'}
           </button>
           <button
             className="w-full rounded-xl border border-rose-200 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 dark:border-rose-900/40 dark:text-rose-400 dark:hover:bg-rose-500/10 transition-colors"
@@ -404,7 +411,7 @@ export default function ExpensesPage() {
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">One-time Expenses</div>
               <button
-                className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                className="rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-2 text-sm font-medium text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                 onClick={() => save({ ...plan, oneTimeExpenses: [...oe, newOneTimeItem('expense', editMonth)] })}>
                 + Add One-time
               </button>
