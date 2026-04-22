@@ -3,35 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { amountForMonth } from '../lib/engine';
 import type { ExpenseCategory, Plan } from '../lib/store';
 import { EXPENSE_CATEGORIES, loadPlan, savePlan } from '../lib/store';
-
-function safeCurrency(c: string) {
-  const x = (c || '').trim().toUpperCase();
-  return /^[A-Z]{3}$/.test(x) ? x : 'USD';
-}
-function money(n: number, c: string) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: safeCurrency(c),
-    maximumFractionDigits: 0,
-  }).format(Number.isFinite(n) ? n : 0);
-}
-function addMonthsISO(s: string, add: number) {
-  const ok = /^\d{4}-\d{2}$/.test(s);
-  const y0 = ok ? Number(s.slice(0, 4)) : new Date().getFullYear();
-  const m0 = ok ? Number(s.slice(5, 7)) - 1 : 0;
-  const t = y0 * 12 + m0 + add;
-  return `${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, '0')}`;
-}
-function parseAmount(v: string) {
-  const n = Number(String(v).replace(/[$,\s]+/g, ''));
-  return Number.isFinite(n) ? n : 0;
-}
-function monthLabel(iso: string) {
-  if (!/^\d{4}-\d{2}$/.test(iso)) return iso;
-  return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(
-    new Date(`${iso}-01T00:00:00`)
-  );
-}
+import { addMonthsISO, CATEGORY_COLORS, money, monthLabel, parseMoney, safeCurrency } from '../lib/utils';
 
 const HousingIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -98,18 +70,14 @@ function barFill(pct: number) {
 
 function StatusPill({ pct, spent, budget, cur }: { pct: number; spent: number; budget: number; cur: string }) {
   if (budget === 0) {
-    return <span className="text-xs text-slate-400 dark:text-slate-500">No budget</span>;
+    return <span className="text-xs text-slate-400 dark:text-slate-300">No budget</span>;
   }
   if (pct > 1) {
     return <span className="text-xs font-medium text-rose-500">{money(spent - budget, cur)} over</span>;
   }
-  return <span className="text-xs text-slate-400 dark:text-slate-500">{money(budget - spent, cur)} left</span>;
+  return <span className="text-xs text-slate-400 dark:text-slate-300">{money(budget - spent, cur)} left</span>;
 }
 
-const CAT_COLORS: Record<string, string> = {
-  'Housing': '#3b82f6', 'Food & Dining': '#f59e0b', 'Transport': '#8b5cf6',
-  'Healthcare': '#ef4444', 'Entertainment': '#ec4899', 'Shopping': '#14b8a6', 'Other': '#64748b',
-};
 
 function BudgetSummaryPanel({ stats, currency }: { stats: { cat: string; spent: number; budget: number; pct: number }[]; currency: string }) {
   const withBudget = stats.filter(s => s.budget > 0);
@@ -123,7 +91,7 @@ function BudgetSummaryPanel({ stats, currency }: { stats: { cat: string; spent: 
         <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-4">Spending by Category</div>
         <div className="space-y-3">
           {stats.filter(s => s.spent > 0).sort((a,b) => b.spent - a.spent).map(s => {
-            const color = CAT_COLORS[s.cat] || '#64748b';
+            const color = CATEGORY_COLORS[s.cat] || '#64748b';
             const pctOfTotal = totalSpent > 0 ? (s.spent / totalSpent) * 100 : 0;
             return (
               <div key={s.cat}>
@@ -140,7 +108,7 @@ function BudgetSummaryPanel({ stats, currency }: { stats: { cat: string; spent: 
               </div>
             );
           })}
-          {totalSpent === 0 && <div className="text-sm text-slate-400 dark:text-slate-500">No spending recorded yet.</div>}
+          {totalSpent === 0 && <div className="text-sm text-slate-400 dark:text-slate-300">No spending recorded yet.</div>}
         </div>
         {totalBudget > 0 && (
           <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -168,7 +136,7 @@ function BudgetSummaryPanel({ stats, currency }: { stats: { cat: string; spent: 
 
       {withBudget.length === 0 && (
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="text-sm text-slate-400 dark:text-slate-500">Click any budget amount in the table to set a target.</div>
+          <div className="text-sm text-slate-400 dark:text-slate-300">Click any budget amount in the table to set a target.</div>
         </div>
       )}
     </div>
@@ -185,13 +153,23 @@ export default function BudgetPage() {
   useEffect(() => {
     const p = loadPlan();
     setPlan(p);
-    setMonth(p.startMonthISO || '2026-01');
+    const n = new Date(); setMonth(`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`);
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    function load() { setPlan(loadPlan()); }
+    window.addEventListener('finance_planner_plan_updated', load);
+    window.addEventListener('storage', load);
+    return () => {
+      window.removeEventListener('finance_planner_plan_updated', load);
+      window.removeEventListener('storage', load);
+    };
   }, []);
 
   function saveBudget(cat: ExpenseCategory) {
     if (!plan) return;
-    const n = parseAmount(draft);
+    const n = parseMoney(draft);
     const updated = { ...plan, budgets: { ...plan.budgets, [cat]: n } };
     setPlan(updated);
     savePlan(updated);
@@ -241,7 +219,7 @@ export default function BudgetPage() {
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
           <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Budget</div>
-          <div className="text-sm text-slate-500 dark:text-slate-400">Track spending against your monthly targets.</div>
+          <div className="text-sm text-slate-500 dark:text-slate-200">Track spending against your monthly targets.</div>
         </div>
         <select
           value={month}
@@ -259,11 +237,11 @@ export default function BudgetPage() {
         <div className="px-6 py-5 space-y-4">
           <div className="flex items-end justify-between">
             <div>
-              <div className="text-xs font-medium uppercase tracking-widest text-slate-400 mb-1">Spent</div>
+              <div className="text-xs font-medium uppercase tracking-widest text-slate-500 dark:text-slate-300 mb-1">Spent</div>
               <div className="text-3xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{money(totalSpent, currency)}</div>
             </div>
             <div className="text-right">
-              <div className="text-xs font-medium uppercase tracking-widest text-slate-400 mb-1">Remaining</div>
+              <div className="text-xs font-medium uppercase tracking-widest text-slate-500 dark:text-slate-300 mb-1">Remaining</div>
               <div className={`text-3xl font-bold tabular-nums ${totalOver > 0 ? 'text-rose-500' : 'text-slate-900 dark:text-slate-100'}`}>
                 {totalBudget === 0 ? '—' : totalOver > 0 ? `-${money(totalOver, currency)}` : money(totalBudget - totalSpent, currency)}
               </div>
@@ -295,6 +273,79 @@ export default function BudgetPage() {
         <div style={{flex:'3 1 320px', minWidth:0}}>
         {/* Category list */}
         <div className="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 shadow-sm overflow-hidden">
+
+        {/* ── Mobile card list (< 640px) ── */}
+        <div className="block sm:hidden divide-y divide-slate-100 dark:divide-slate-800">
+          {stats.map(({ cat, spent, budget, pct }, i) => {
+            const isEditing = editing === cat;
+            const isLast = i === stats.length - 1;
+            return (
+              <div
+                key={cat}
+                className={`flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors${!isLast ? '' : ''}`}
+              >
+                {/* Icon */}
+                <span className="text-slate-400 dark:text-slate-300 shrink-0">
+                  <CategoryIcon cat={cat} />
+                </span>
+                {/* Name + bar */}
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{cat}</div>
+                  <div className="mt-1 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden w-full">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${budget > 0 ? barFill(pct) : 'bg-slate-200 dark:bg-slate-700'}`}
+                      style={{ width: budget > 0 ? `${Math.min(100, pct * 100).toFixed(1)}%` : '0%' }}
+                    />
+                  </div>
+                  <div className="mt-0.5 text-xs">
+                    <StatusPill pct={pct} spent={spent} budget={budget} cur={currency} />
+                  </div>
+                </div>
+                {/* Right: spent + tap-to-set-budget */}
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-200">{money(spent, currency)}</div>
+                  {isEditing ? (
+                    <input
+                      autoFocus
+                      className="mt-0.5 w-20 rounded-lg border border-blue-400 bg-transparent px-2 py-0.5 text-xs text-right text-slate-900 outline-none dark:text-slate-100"
+                      value={draft}
+                      placeholder="0"
+                      inputMode="decimal"
+                      onChange={e => setDraft(e.target.value)}
+                      onBlur={() => saveBudget(cat)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') saveBudget(cat);
+                        if (e.key === 'Escape') setEditing(null);
+                      }}
+                    />
+                  ) : (
+                    <button
+                      className="mt-0.5 text-xs tabular-nums text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                      onClick={() => { setEditing(cat); setDraft(budget > 0 ? String(budget) : ''); }}
+                      title="Tap to set budget"
+                    >
+                      {budget > 0 ? money(budget, currency) : <span className="text-xs text-blue-400">+ Set</span>}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {/* Mobile totals footer */}
+          <div className="flex items-center gap-3 px-4 py-3 bg-slate-100 dark:bg-slate-800">
+            <span className="text-slate-400 dark:text-slate-300 shrink-0" style={{width:20}} />
+            <div className="flex-1 text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-200">Total</div>
+            <div className="text-right shrink-0">
+              <div className="text-sm font-semibold tabular-nums text-slate-900 dark:text-slate-100">{money(totalSpent, currency)}</div>
+              <div className={`text-xs font-semibold tabular-nums ${totalOver > 0 ? 'text-rose-500' : 'text-slate-400 dark:text-slate-300'}`}>
+                {totalBudget === 0 ? '—' : totalOver > 0 ? `-${money(totalOver, currency)}` : money(totalBudget - totalSpent, currency)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Desktop table (≥ 640px) ── */}
+        <div className="hidden sm:block">
         <div className="overflow-x-auto">
           <div style={{ minWidth: 480 }}>
             {/* Table header */}
@@ -302,10 +353,10 @@ export default function BudgetPage() {
               className="grid gap-4 items-center px-6 py-3 border-b border-slate-100 dark:border-slate-800"
               style={{ gridTemplateColumns: '1fr 6rem 6rem 6rem' }}
             >
-              <div className="text-xs font-medium uppercase tracking-widest text-slate-400">Category</div>
-              <div className="text-xs font-medium uppercase tracking-widest text-slate-400 text-right">Spent</div>
-              <div className="text-xs font-medium uppercase tracking-widest text-slate-400 text-right">Budget</div>
-              <div className="text-xs font-medium uppercase tracking-widest text-slate-400 text-right">Remaining</div>
+              <div className="text-xs font-medium uppercase tracking-widest text-slate-500 dark:text-slate-300">Category</div>
+              <div className="text-xs font-medium uppercase tracking-widest text-slate-500 dark:text-slate-300 text-right">Spent</div>
+              <div className="text-xs font-medium uppercase tracking-widest text-slate-500 dark:text-slate-300 text-right">Budget</div>
+              <div className="text-xs font-medium uppercase tracking-widest text-slate-500 dark:text-slate-300 text-right">Remaining</div>
             </div>
 
             {/* Category rows */}
@@ -321,7 +372,7 @@ export default function BudgetPage() {
                   {/* Category name + progress bar */}
                   <div className="flex flex-col gap-1.5 min-w-0">
                     <div className="flex items-center gap-2.5">
-                      <span className="text-slate-400 dark:text-slate-500 shrink-0">
+                      <span className="text-slate-400 dark:text-slate-300 shrink-0">
                         <CategoryIcon cat={cat} />
                       </span>
                       <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{cat}</span>
@@ -347,6 +398,7 @@ export default function BudgetPage() {
                         className="w-24 rounded-lg border border-blue-400 bg-transparent px-2 py-0.5 text-sm text-right text-slate-900 outline-none dark:text-slate-100"
                         value={draft}
                         placeholder="0"
+                        inputMode="decimal"
                         onChange={e => setDraft(e.target.value)}
                         onBlur={() => saveBudget(cat)}
                         onKeyDown={e => {
@@ -380,14 +432,15 @@ export default function BudgetPage() {
           className="grid gap-4 items-center px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800"
           style={{ gridTemplateColumns: '1fr 6rem 6rem 6rem' }}
         >
-          <div className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Total</div>
+          <div className="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-200">Total</div>
           <div className="text-sm font-semibold tabular-nums text-slate-900 dark:text-slate-100 text-right">{money(totalSpent, currency)}</div>
           <div className="text-sm font-semibold tabular-nums text-slate-400 text-right">{totalBudget > 0 ? money(totalBudget, currency) : '—'}</div>
           <div className={`text-sm font-semibold tabular-nums text-right ${totalOver > 0 ? 'text-rose-500' : 'text-slate-900 dark:text-slate-100'}`}>
             {totalBudget === 0 ? '—' : totalOver > 0 ? `-${money(totalOver, currency)}` : money(totalBudget - totalSpent, currency)}
           </div>
         </div>
-        </div>
+        </div>{/* end hidden sm:block */}
+        </div>{/* end card */}
         </div>
 
         {/* Right panel */}

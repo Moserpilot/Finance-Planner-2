@@ -84,10 +84,10 @@ export default function CashflowPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Cash Flow Planner</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Month-by-month income, expenses, and running total.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-200">Month-by-month income, expenses, and running total.</p>
         </div>
         <label className="text-sm">
-          <div className="mb-1 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Duration</div>
+          <div className="mb-1 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-200">Duration</div>
           <select className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" value={months} onChange={(e) => setMonths(Number(e.target.value))}>
             {[12, 24, 36, 60, 120].map((m) => (
               <option key={m} value={m}>{m} months</option>
@@ -98,41 +98,43 @@ export default function CashflowPage() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Total Income</div>
+          <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-300">Total Income</div>
           <div className="mt-1.5 text-2xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{money(totals.income, currency)}</div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Total Expenses</div>
+          <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-300">Total Expenses</div>
           <div className="mt-1.5 text-2xl font-semibold tabular-nums text-rose-600 dark:text-rose-400">{money(totals.expenses, currency)}</div>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Net Cash Flow</div>
+          <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-300">Net Cash Flow</div>
           <div className={`mt-1.5 text-2xl font-semibold tabular-nums ${totals.net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{money(totals.net, currency)}</div>
         </div>
       </div>
+
+      <div className="text-xs text-slate-400 dark:text-slate-300 mb-2 sm:hidden">Showing net &amp; running total — rotate for full detail</div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="min-w-full text-sm">
             <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800 shadow-sm">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Month</th>
-                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Rec. Income</th>
-                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">One-time Inc.</th>
-                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Rec. Expenses</th>
-                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">One-time Exp.</th>
-                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Net</th>
-                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Running Total</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-300">Month</th>
+                <th className="hidden sm:table-cell px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-300">Rec. Income</th>
+                <th className="hidden sm:table-cell px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-300">One-time Inc.</th>
+                <th className="hidden sm:table-cell px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-300">Rec. Expenses</th>
+                <th className="hidden sm:table-cell px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-300">One-time Exp.</th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-300">Net</th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-300">Running Total</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.monthISO} className={`border-t border-slate-100 dark:border-slate-800 ${r.net < 0 ? 'bg-rose-50/30 dark:bg-rose-900/10' : ''}`}>
                   <td className="px-4 py-2.5 text-slate-900 dark:text-slate-100 font-medium">{monthLabel(r.monthISO)}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{money(r.recurringIncome, currency)}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{r.oneTimeIncome > 0 ? money(r.oneTimeIncome, currency) : <span className="text-slate-300 dark:text-slate-700">—</span>}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-rose-600 dark:text-rose-400">{money(r.recurringExpenses, currency)}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-rose-600 dark:text-rose-400">{r.oneTimeExpenses > 0 ? money(r.oneTimeExpenses, currency) : <span className="text-slate-300 dark:text-slate-700">—</span>}</td>
+                  <td className="hidden sm:table-cell px-4 py-2.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{money(r.recurringIncome, currency)}</td>
+                  <td className="hidden sm:table-cell px-4 py-2.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{r.oneTimeIncome > 0 ? money(r.oneTimeIncome, currency) : <span className="text-slate-300 dark:text-slate-400">—</span>}</td>
+                  <td className="hidden sm:table-cell px-4 py-2.5 text-right tabular-nums text-rose-600 dark:text-rose-400">{money(r.recurringExpenses, currency)}</td>
+                  <td className="hidden sm:table-cell px-4 py-2.5 text-right tabular-nums text-rose-600 dark:text-rose-400">{r.oneTimeExpenses > 0 ? money(r.oneTimeExpenses, currency) : <span className="text-slate-300 dark:text-slate-400">—</span>}</td>
                   <td className={`px-4 py-2.5 text-right tabular-nums font-semibold ${r.net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{money(r.net, currency)}</td>
                   <td className={`px-4 py-2.5 text-right tabular-nums font-semibold ${r.cum >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'}`}>{money(r.cum, currency)}</td>
                 </tr>

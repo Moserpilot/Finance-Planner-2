@@ -25,7 +25,9 @@ export function amountForMonth(it: RecurringItem, monthISO: string): number {
 
   if (it.behavior === 'monthOnly') {
     const hit = (it.overrides || []).find((x) => x.monthISO === monthISO);
-    return hit && Number.isFinite(hit.amount) ? hit.amount : base;
+    // Return 0 for months with no explicit override — "this month only" means
+    // the item does not exist in months where the user hasn't set a value.
+    return hit && Number.isFinite(hit.amount) ? hit.amount : 0;
   }
 
   const changes = [...(it.changes || [])].sort((a, b) =>
@@ -62,7 +64,46 @@ export function accountBalanceForMonth(
   return latest;
 }
 
-export function netWorthForMonth(plan: Plan, monthISO: string): number {
+/**
+ * Computed balance for a single account:
+ * raw snapshot carry-forward + linked one-time income − linked one-time expenses.
+ * This is the single source of truth for what an account is worth at a given month.
+ */
+export function computedAccountBalance(plan: Plan, accountId: string, monthISO: string): number {
+  const acct = (plan.netWorthAccounts || []).find(a => a.id === accountId);
+  if (!acct) return 0;
+  const raw = accountBalanceForMonth(acct, monthISO);
+  if (plan.netWorthMode === 'snapshot') return raw;
+  const startMonth = plan.startMonthISO || '2026-01';
+  const inc = (plan.oneTimeIncome || [])
+    .filter(x => x.accountId === accountId && x.monthISO >= startMonth && x.monthISO <= monthISO && Number.isFinite(x.amount))
+    .reduce((s, x) => s + x.amount, 0);
+  const exp = (plan.oneTimeExpenses || [])
+    .filter(x => x.accountId === accountId && x.monthISO >= startMonth && x.monthISO <= monthISO && Number.isFinite(x.amount))
+    .reduce((s, x) => s + x.amount, 0);
+  return raw + inc - exp;
+}
+
+/**
+ * Total net worth = sum of all computed account balances + any one-time items
+ * not linked to a specific account. Single source of truth used everywhere.
+ */
+export function totalNetWorth(plan: Plan, monthISO: string): number {
+  const accountsSum = (plan.netWorthAccounts || []).reduce(
+    (s, a) => s + computedAccountBalance(plan, a.id, monthISO), 0
+  );
+  if (plan.netWorthMode === 'snapshot') return accountsSum;
+  const startMonth = plan.startMonthISO || '2026-01';
+  const unlinkedInc = (plan.oneTimeIncome || [])
+    .filter(x => !x.accountId && x.monthISO >= startMonth && x.monthISO <= monthISO && Number.isFinite(x.amount))
+    .reduce((s, x) => s + x.amount, 0);
+  const unlinkedExp = (plan.oneTimeExpenses || [])
+    .filter(x => !x.accountId && x.monthISO >= startMonth && x.monthISO <= monthISO && Number.isFinite(x.amount))
+    .reduce((s, x) => s + x.amount, 0);
+  return accountsSum + unlinkedInc - unlinkedExp;
+}
+
+function netWorthForMonth(plan: Plan, monthISO: string): number {
   const accounts = plan.netWorthAccounts || [];
   const sum = accounts.reduce(
     (s, a) => s + accountBalanceForMonth(a, monthISO),
@@ -81,6 +122,72 @@ export function hasNetWorthSnapshot(plan: Plan, monthISO: string): boolean {
   return (plan.netWorthAccounts || []).some((a) =>
     (a.balances || []).some((b) => b.monthISO === monthISO)
   );
+}
+
+/**
+ * Net worth for a month including projected cash flow.
+ * - snapshot mode: same as totalNetWorth (static balances only)
+ * - hybrid: uses actual snapshot if one exists, otherwise projects forward from last snapshot
+ * - projection: always projects forward from start using recurring + one-time cash flow
+ * Use this everywhere a net worth KPI is displayed.
+ */
+export function netWorthProjected(plan: Plan, targetMonthISO: string): number {
+  const mode = plan.netWorthMode || 'snapshot';
+  if (mode === 'snapshot') return totalNetWorth(plan, targetMonthISO);
+
+  const start = plan.startMonthISO || '2026-01';
+  const sy = Number(start.slice(0, 4));
+  const sm = Number(start.slice(5, 7)) - 1;
+  const ty = Number(targetMonthISO.slice(0, 4));
+  const tm = Number(targetMonthISO.slice(5, 7)) - 1;
+  const maxI = (ty - sy) * 12 + (tm - sm);
+
+  if (maxI < 0) return totalNetWorth(plan, targetMonthISO);
+
+  const annualPct = Number.isFinite(plan.expectedReturnPct) ? plan.expectedReturnPct as number : 0;
+  const monthlyR = annualPct === 0 ? 0 : Math.pow(1 + annualPct / 100, 1 / 12) - 1;
+  const legacyStart = Number.isFinite(plan.startingNetWorth) ? plan.startingNetWorth as number : 0;
+  const startHasSnapshot = hasNetWorthSnapshot(plan, start);
+
+  // Investment return only applies to FUTURE months (after today).
+  // Past/current months: cash flow only — return is already embedded in real balances.
+  const todayD = new Date();
+  const todayISO = `${todayD.getFullYear()}-${String(todayD.getMonth() + 1).padStart(2, '0')}`;
+
+  let nw =
+    mode === 'hybrid'
+      ? lastSnapshotAtOrBefore(plan, start) ?? legacyStart
+      : startHasSnapshot
+      ? netWorthForMonth(plan, start)
+      : legacyStart;
+
+  const recurringIncome = plan.income || [];
+  const recurringExpenses = plan.expenses || [];
+  const oneIncome = (plan.oneTimeIncome || []) as OneTimeItem[];
+  const oneExpenses = (plan.oneTimeExpenses || []) as OneTimeItem[];
+
+  for (let i = 0; i <= maxI; i++) {
+    const t = sy * 12 + sm + i;
+    const monthISO = `${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, '0')}`;
+
+    if (mode === 'hybrid' && hasNetWorthSnapshot(plan, monthISO)) {
+      nw = totalNetWorth(plan, monthISO);
+      continue;
+    }
+
+    const inc = recurringIncome.reduce((s, it) => s + amountForMonth(it, monthISO), 0);
+    const exp = recurringExpenses.reduce((s, it) => s + amountForMonth(it, monthISO), 0);
+    const oneInc = oneIncome.filter(x => x.monthISO === monthISO).reduce((s, x) => s + (Number.isFinite(x.amount) ? x.amount : 0), 0);
+    const oneExp = oneExpenses.filter(x => x.monthISO === monthISO).reduce((s, x) => s + (Number.isFinite(x.amount) ? x.amount : 0), 0);
+    const netCashFlow = inc + oneInc - exp - oneExp;
+
+    // Apply return only for future months; past/current months: cash flow only
+    nw = monthISO > todayISO
+      ? nw * (1 + monthlyR) + netCashFlow
+      : nw + netCashFlow;
+  }
+
+  return nw;
 }
 
 /**
@@ -144,8 +251,12 @@ export function buildNetWorthSeries(plan: Plan): SeriesPoint[] {
     ? plan.expectedReturnPct
     : 0;
 
-  // Keep original behavior (simple annual/12) to avoid surprising changes.
-  const monthlyR = annualPct / 100 / 12;
+  // True compound monthly rate: (1 + annual)^(1/12) - 1
+  const monthlyR = annualPct === 0 ? 0 : Math.pow(1 + annualPct / 100, 1 / 12) - 1;
+
+  // Investment return only applies to future months (after today)
+  const todayD = new Date();
+  const todayISO = `${todayD.getFullYear()}-${String(todayD.getMonth() + 1).padStart(2, '0')}`;
 
   const start = plan.startMonthISO || '2026-01';
   const startY = Number(start.slice(0, 4));
@@ -192,11 +303,10 @@ export function buildNetWorthSeries(plan: Plan): SeriesPoint[] {
       continue;
     }
 
-    // HYBRID FIX:
-    // If a snapshot exists for this month, that month is actual + anchor.
-    // Do NOT apply modeled return/cashflow inside this month.
+    // HYBRID: If a snapshot exists for this month, use totalNetWorth as anchor.
+    // This correctly includes linked one-time items per account without double-counting.
     if (mode === 'hybrid' && hasNetWorthSnapshot(plan, monthISO)) {
-      nw = netWorthForMonth(plan, monthISO);
+      nw = totalNetWorth(plan, monthISO);
       series.push({ monthIndex: i, netWorth: nw });
       continue;
     }
@@ -220,7 +330,10 @@ export function buildNetWorthSeries(plan: Plan): SeriesPoint[] {
 
     const netCashFlow = inc + oneInc - (exp + oneExp);
 
-    nw = nw * (1 + monthlyR) + netCashFlow;
+    // Apply return only for future months; past/current months: cash flow only
+    nw = monthISO > todayISO
+      ? nw * (1 + monthlyR) + netCashFlow
+      : nw + netCashFlow;
 
     series.push({ monthIndex: i, netWorth: nw });
   }
@@ -236,7 +349,7 @@ export function buildNetWorthSeries(plan: Plan): SeriesPoint[] {
  * Returns the latest monthISO for which ANY net worth snapshot exists across accounts.
  * If none exist, returns null.
  */
-export function latestNetWorthSnapshotMonth(plan: Plan): string | null {
+function latestNetWorthSnapshotMonth(plan: Plan): string | null {
   const months: string[] = [];
   for (const acct of plan.netWorthAccounts || []) {
     for (const b of acct.balances || []) {
@@ -254,7 +367,7 @@ export function latestNetWorthSnapshotMonth(plan: Plan): string | null {
  * Returns the latest snapshot monthISO <= targetMonthISO across all accounts.
  * If none exist (at or before), returns null.
  */
-export function snapshotMonthAtOrBefore(
+function snapshotMonthAtOrBefore(
   plan: Plan,
   targetMonthISO: string
 ): string | null {
@@ -283,7 +396,7 @@ export function snapshotMonthAtOrBefore(
  * - Otherwise falls back to legacy startingNetWorth if present
  * - Otherwise null
  */
-export function netWorthAsOf(
+function netWorthAsOf(
   plan: Plan,
   targetMonthISO: string
 ): {

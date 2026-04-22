@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AllocationPie } from './AllocationPie';
 import { buildAllocation } from '../lib/allocation';
+import { netWorthProjected } from '../lib/engine';
 import type { Plan } from '../lib/store';
 import { loadPlan, savePlan } from '../lib/store';
 
@@ -41,11 +42,17 @@ export function SidebarAssumptions() {
   }, [reload]);
 
   const currency = plan?.currency || 'USD';
-  const asOfMonth = plan?.netWorthViewMonthISO || plan?.startMonthISO || '2026-01';
+  const todayISO = useMemo(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; }, []);
+  const asOfMonth = todayISO;
 
   const slices = useMemo(() => {
     if (!plan) return [];
     return buildAllocation(plan, asOfMonth);
+  }, [plan, asOfMonth]);
+
+  const projectedTotal = useMemo(() => {
+    if (!plan) return 0;
+    return netWorthProjected(plan, asOfMonth);
   }, [plan, asOfMonth]);
 
   if (!plan) {
@@ -95,7 +102,7 @@ export function SidebarAssumptions() {
           />
         </label>
       </div>
-      <AllocationPie slices={slices} currency={currency} title={`Allocation — ${(() => { try { return new Intl.DateTimeFormat('en-US',{month:'short',year:'numeric'}).format(new Date(`${asOfMonth}-01T00:00:00`)); } catch { return asOfMonth; } })()}`} />
+      <AllocationPie slices={slices} currency={currency} total={projectedTotal} title={`Allocation — ${(() => { try { return new Intl.DateTimeFormat('en-US',{month:'short',year:'numeric'}).format(new Date(`${asOfMonth}-01T00:00:00`)); } catch { return asOfMonth; } })()}`} />
     </div>
   );
 }

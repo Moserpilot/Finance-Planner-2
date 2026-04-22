@@ -9,7 +9,7 @@ const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','De
 function addM(sy:number,sm:number,add:number){const t=sy*12+sm+add;return{y:Math.floor(t/12),m:t%12};}
 function lbl(startISO:string,idx:number){const{y:sy,m:sm}=parseISO(startISO);const{y,m}=addM(sy,sm,idx);return MON[m]+' '+String(y).slice(-2);}
 function niceStep(range:number,maxTicks:number){const r=Math.max(1,range);const rough=r/maxTicks;const exp=Math.floor(Math.log10(rough));const base=Math.pow(10,exp);const frac=rough/base;let s=frac<=1.5?base:frac<=3?base*2:frac<=7?base*5:base*10;return Math.max(s,1);}
-export function NetWorthChart({currency,series,startMonthISO,heightPx=500,goalNetWorth=0}:{currency:string;series:SeriesPoint[];startMonthISO:string;heightPx?:number;goalNetWorth?:number;}){
+export function NetWorthChart({currency,series,startMonthISO,heightPx=500,goalNetWorth=0,hideInfo=false}:{currency:string;series:SeriesPoint[];startMonthISO:string;heightPx?:number;goalNetWorth?:number;hideInfo?:boolean;}){
   const containerRef=useRef<HTMLDivElement|null>(null);
   const[mounted,setMounted]=useState(false);
   const[svgW,setSvgW]=useState(600);
@@ -67,6 +67,7 @@ export function NetWorthChart({currency,series,startMonthISO,heightPx=500,goalNe
   },[series,svgW,goalNetWorth]);
   const hoverIdx=useMemo(()=>{if(hoverPct===null||!chart.pts.length)return null;return Math.round(hoverPct*(chart.pts.length-1));},[hoverPct,chart.pts.length]);
   const hover=hoverIdx!=null?chart.pts[hoverIdx]:null;
+  const hoverLabelRight=hover?hover.x<chart.VW*0.55:true;
   const endVal=series[series.length-1]?.netWorth??0;
   const lastPt=chart.pts.length?chart.pts[chart.pts.length-1]:null;
   const ax='currentColor';
@@ -74,11 +75,11 @@ export function NetWorthChart({currency,series,startMonthISO,heightPx=500,goalNe
   if(!mounted)return<div ref={containerRef} className='w-full rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-slate-50 dark:bg-slate-900/40' style={{height:heightPx}}/>;
   return(
     <div className='w-full' style={{height:heightPx}}>
-      <div className='mb-1 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1'>
+      {!hideInfo&&<div className='mb-1 flex items-center justify-between text-xs text-slate-500 dark:text-slate-200 px-1'>
         <div>End value: <span className='font-semibold text-slate-900 dark:text-slate-100 tabular-nums'>{fmt0(endVal,currency)}</span></div>
         {hover?<div className='tabular-nums'>{lbl(startMonthISO,hover.mi)} · <span className='font-semibold text-slate-900 dark:text-slate-100'>{fmt0(hover.v,currency)}</span></div>:<div className='opacity-50 italic'>Move cursor over chart to see values</div>}
-      </div>
-      <div ref={containerRef} className='w-full rounded-2xl border border-slate-200/60 dark:border-slate-800/60' style={{height:heightPx-24}}>
+      </div>}
+      <div ref={containerRef} className='w-full rounded-2xl border border-slate-200/60 dark:border-slate-800/60' style={{height:hideInfo?heightPx:heightPx-24}}>
         <svg width={chart.VW} height={VH} className='block text-blue-500 dark:text-blue-400' onPointerMove={onPointer} onPointerDown={onPointer} onPointerLeave={()=>setHoverPct(null)} style={{touchAction:'none',width:'100%',height:'100%'}}>
           <defs><linearGradient id='grad' x1='0' x2='0' y1='0' y2='1'><stop offset='0%' stopColor='currentColor' stopOpacity='0.2'/><stop offset='100%' stopColor='currentColor' stopOpacity='0.02'/></linearGradient><filter id='glow'><feDropShadow dx='0' dy='2' stdDeviation='3' floodColor='currentColor' floodOpacity='0.2'/></filter></defs>
           {chart.yTicks.map((t,i)=>(<g key={i}><line x1={pad.l} x2={chart.VW-pad.r} y1={t.y} y2={t.y} stroke={ax} opacity={0.1}/><text x={pad.l-5} y={t.y+4} textAnchor='end' fontSize='16' fill={ax} className='text-slate-900 dark:text-slate-100' opacity={0.85}>{fmtK(t.v,currency)}</text></g>))}
@@ -87,7 +88,7 @@ export function NetWorthChart({currency,series,startMonthISO,heightPx=500,goalNe
           <path d={chart.lineD} fill='none' stroke='currentColor' opacity={0.4} strokeWidth={8} strokeLinecap='round' filter='url(#glow)'/>
           <path d={chart.lineD} fill='none' stroke='currentColor' opacity={0.95} strokeWidth={3} strokeLinecap='round'/>
           {lastPt&&<g><circle cx={lastPt.x} cy={lastPt.y} r={5} fill='currentColor' opacity={0.95}/><text x={lastPt.x-8} y={lastPt.y-10} textAnchor='end' fontSize='16' fill={ax} className='text-slate-900 dark:text-slate-100' opacity={0.85}>{fmtK(lastPt.v,currency)}</text></g>}
-          {hover&&<g><line x1={hover.x} x2={hover.x} y1={pad.t} y2={VH-pad.b} stroke='currentColor' opacity={0.2} strokeDasharray='4 3'/><circle cx={hover.x} cy={hover.y} r={5} fill='currentColor' opacity={0.95}/></g>}
+          {hover&&<g><line x1={hover.x} x2={hover.x} y1={pad.t} y2={VH-pad.b} stroke='currentColor' opacity={0.2} strokeDasharray='4 3'/><circle cx={hover.x} cy={hover.y} r={6} fill='currentColor' opacity={0.95}/><text x={hoverLabelRight?hover.x+10:hover.x-10} y={Math.max(pad.t+16,hover.y-10)} textAnchor={hoverLabelRight?'start':'end'} fontSize='14' fontWeight='700' fill={ax} className='text-slate-900 dark:text-slate-100' opacity={0.95}>{fmt0(hover.v,currency)}</text></g>}
           {chart.goalY!==null&&(
             <g>
               <line x1={pad.l} x2={chart.VW-pad.r} y1={chart.goalY} y2={chart.goalY} stroke='#f59e0b' strokeWidth={1.5} strokeDasharray='6 3' opacity={0.7}/>

@@ -22,6 +22,8 @@ export type OneTimeItem = {
   monthISO: string;
   amount: number;
   category?: ExpenseCategory;
+  /** Optional: which net worth account this item belongs to (for allocation pie) */
+  accountId?: string;
 };
 
 export type NetWorthAccountType = 'cash' | 'taxable' | 'retirement' | 'other';
@@ -62,7 +64,7 @@ export function createDefaultPlan(): Plan {
     netWorthViewMonthISO: '2026-01',
     startingNetWorth: 0,
     goalNetWorth: 0,
-    expectedReturnPct: 5,
+    expectedReturnPct: 7,
     income: [],
     expenses: [],
     oneTimeIncome: [],
@@ -135,7 +137,7 @@ export function loadPlan(): Plan {
           : startMonthISO,
       startingNetWorth: ensureNumber(p.startingNetWorth, 0),
       goalNetWorth: ensureNumber(p.goalNetWorth, 0),
-      expectedReturnPct: ensureNumber(p.expectedReturnPct, 5),
+      expectedReturnPct: ensureNumber(p.expectedReturnPct, 7),
       income: ensureArray(p.income),
       expenses: ensureArray(p.expenses),
       oneTimeIncome: ensureArray(p.oneTimeIncome),
@@ -145,6 +147,7 @@ export function loadPlan(): Plan {
       budgets: (typeof p.budgets === 'object' && p.budgets !== null && !Array.isArray(p.budgets))
         ? Object.fromEntries(EXPENSE_CATEGORIES.filter(c => Number.isFinite(Number((p.budgets as any)[c]))).map(c => [c, Number((p.budgets as any)[c])]))
         : {},
+      savedAt: typeof p.savedAt === 'string' ? p.savedAt : undefined,
     };
   } catch {
     return defaults;

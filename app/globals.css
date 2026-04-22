@@ -171,6 +171,17 @@ body {
       hsl(var(--panel) / 1);
   }
 
+  /* Balance privacy blur — toggled by .balances-hidden on <html> */
+  .balance-blur {
+    transition: filter 0.2s ease, opacity 0.2s ease;
+  }
+  .balances-hidden .balance-blur {
+    filter: blur(10px);
+    opacity: 0.6;
+    user-select: none;
+    pointer-events: none;
+  }
+
   /* Accent text helpers (for chart currentColor) */
   .accent {
     color: hsl(var(--accent));

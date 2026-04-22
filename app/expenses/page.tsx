@@ -1,50 +1,11 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { ChevronIcon } from '../components/ChevronIcon';
 import { amountForMonth } from '../lib/engine';
-import type { DatedAmount, OneTimeItem, Plan, RecurringItem } from '../lib/store';
+import type { OneTimeItem, Plan, RecurringItem } from '../lib/store';
 import { EXPENSE_CATEGORIES, loadPlan, newOneTimeItem, newRecurringItem, savePlan } from '../lib/store';
 import type { ExpenseCategory } from '../lib/store';
-
-function safeCurrency(c: string) {
-  const x = (c || '').trim().toUpperCase();
-  return /^[A-Z]{3}$/.test(x) ? x : 'USD';
-}
-function money(n: number, c: string) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: safeCurrency(c), maximumFractionDigits: 0 }).format(Number.isFinite(n) ? n : 0);
-}
-function addMonthsISO(s: string, add: number) {
-  const ok = /^\d{4}-\d{2}$/.test(s);
-  const y0 = ok ? Number(s.slice(0, 4)) : new Date().getFullYear();
-  const m0 = ok ? Number(s.slice(5, 7)) - 1 : 0;
-  const t = y0 * 12 + m0 + add;
-  return `${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, '0')}`;
-}
-function monthLabel(iso: string) {
-  if (!/^\d{4}-\d{2}$/.test(iso)) return iso;
-  return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(new Date(`${iso}-01T00:00:00`));
-}
-function asNum(v: string) {
-  const n = Number(String(v).replace(/[$,%\s,]+/g, ''));
-  return Number.isFinite(n) ? n : 0;
-}
-function upsert(arr: DatedAmount[], monthISO: string, amount: number) {
-  const next = [...arr];
-  const i = next.findIndex(x => x.monthISO === monthISO);
-  if (i >= 0) next[i] = { monthISO, amount };
-  else next.push({ monthISO, amount });
-  next.sort((a, b) => a.monthISO < b.monthISO ? -1 : 1);
-  return next;
-}
-
-const CATEGORY_COLORS: Record<string, string> = {
-  'Housing': '#3b82f6',
-  'Food & Dining': '#f59e0b',
-  'Transport': '#8b5cf6',
-  'Healthcare': '#ef4444',
-  'Entertainment': '#ec4899',
-  'Shopping': '#14b8a6',
-  'Other': '#64748b',
-};
+import { addMonthsISO, CATEGORY_COLORS, money, monthLabel, parseMoney, safeCurrency, upsertDated } from '../lib/utils';
 
 function expenseIcon(name: string, category?: string): string {
   if (category) {
@@ -63,15 +24,6 @@ function expenseIcon(name: string, category?: string): string {
   if (/netflix|hulu|spotify|youtube|stream|entertain|hbo|sirius|disney/.test(n)) return '🎬';
   if (/amazon|shop|cloth/.test(n)) return '🛍️';
   return '💳';
-}
-
-function ChevronIcon({ open }: { open: boolean }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-      style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  );
 }
 
 function CategoryBreakdownChart({ items, oneTime, editMonth, currency }: {
@@ -94,7 +46,6 @@ function CategoryBreakdownChart({ items, oneTime, editMonth, currency }: {
         <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Spending by Category</div>
         <div className="text-lg font-bold tabular-nums text-rose-600 dark:text-rose-400">{money(total, currency)}</div>
       </div>
-      {/* Stacked bar */}
       <div className="flex h-5 rounded-xl overflow-hidden gap-px mb-4">
         {byCategory.map(x => (
           <div
@@ -104,18 +55,17 @@ function CategoryBreakdownChart({ items, oneTime, editMonth, currency }: {
           />
         ))}
       </div>
-      {/* Legend — name + amount + pct */}
       <div className="space-y-2">
         {byCategory.sort((a,b) => b.amount - a.amount).map(x => (
           <div key={x.cat}>
             <div className="flex items-center justify-between mb-0.5">
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: CATEGORY_COLORS[x.cat] || '#64748b' }} />
-                <span className="text-sm text-slate-600 dark:text-slate-400 truncate">{x.cat}</span>
+                <span className="text-sm text-slate-600 dark:text-slate-200 truncate">{x.cat}</span>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                 <span className="text-sm font-semibold tabular-nums text-slate-900 dark:text-slate-100">{money(x.amount, currency)}</span>
-                <span className="text-xs text-slate-400 dark:text-slate-500 w-8 text-right">{((x.amount / total) * 100).toFixed(0)}%</span>
+                <span className="text-xs text-slate-400 dark:text-slate-300 w-8 text-right">{((x.amount / total) * 100).toFixed(0)}%</span>
               </div>
             </div>
             <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
@@ -156,18 +106,18 @@ function ExpenseCard({ item, editMonth, currency, monthOptions, onUpdate, onDele
           )}
         </div>
         <div className="font-semibold text-rose-600 dark:text-rose-400 tabular-nums flex-shrink-0">{money(ma, currency)}</div>
-        <div className="text-slate-400 dark:text-slate-500"><ChevronIcon open={expanded} /></div>
+        <div className="text-slate-400 dark:text-slate-300"><ChevronIcon open={expanded} /></div>
       </div>
 
       {expanded && (
         <div className="border-t border-slate-100 dark:border-slate-800 px-4 pb-4 pt-4 space-y-3">
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Name</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-200 mb-1">Name</label>
             <input className={inp} value={item.name} placeholder="Expense name"
               onChange={e => onUpdate({ name: e.target.value })} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Category</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-200 mb-1">Category</label>
             <select className={inp} value={item.category || ''}
               onChange={e => onUpdate({ category: (e.target.value as ExpenseCategory) || undefined })}>
               <option value="">No category</option>
@@ -175,16 +125,15 @@ function ExpenseCard({ item, editMonth, currency, monthOptions, onUpdate, onDele
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Default monthly amount</label>
-            <input className={inp} type="text"
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-200 mb-1">Default monthly amount</label>
+            <input className={inp} type="text" inputMode="decimal"
               defaultValue={money(item.defaultAmount, currency)}
               key={'d' + item.id + item.defaultAmount}
-              onBlur={e => onUpdate({ defaultAmount: asNum(e.target.value) })} />
+              onBlur={e => onUpdate({ defaultAmount: parseMoney(e.target.value) })} />
           </div>
           <div className="grid gap-3" style={{gridTemplateColumns:'repeat(2,minmax(0,1fr))'}}>
-
             <div>
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Frequency</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-200 mb-1">Frequency</label>
               <select className={inp} value={item.behavior}
                 onChange={e => onUpdate({ behavior: e.target.value === 'monthOnly' ? 'monthOnly' : 'carryForward' })}>
                 <option value="carryForward">Monthly recurring</option>
@@ -192,7 +141,7 @@ function ExpenseCard({ item, editMonth, currency, monthOptions, onUpdate, onDele
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Stop after</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-200 mb-1">Stop after</label>
               <select className={inp} value={item.endMonthISO || ''}
                 onChange={e => onUpdate({ endMonthISO: e.target.value || null })}>
                 <option value="">Never</option>
@@ -201,11 +150,11 @@ function ExpenseCard({ item, editMonth, currency, monthOptions, onUpdate, onDele
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Amount for {monthLabel(editMonth)}</label>
-            <input className={inp} type="text"
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-200 mb-1">Amount for {monthLabel(editMonth)}</label>
+            <input className={inp} type="text" inputMode="decimal"
               defaultValue={money(ma, currency)}
               key={'m' + item.id + editMonth + ma}
-              onBlur={e => onSetAmt(item, asNum(e.target.value))} />
+              onBlur={e => onSetAmt(item, parseMoney(e.target.value))} />
           </div>
           <button
             className="w-full rounded-xl border border-rose-200 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 dark:border-rose-900/40 dark:text-rose-400 dark:hover:bg-rose-500/10 transition-colors"
@@ -218,8 +167,9 @@ function ExpenseCard({ item, editMonth, currency, monthOptions, onUpdate, onDele
   );
 }
 
-function OneTimeExpenseCard({ item, currency, monthOptions, onChange, onDelete }: {
+function OneTimeExpenseCard({ item, currency, monthOptions, accounts, onChange, onDelete }: {
   item: OneTimeItem; currency: string; monthOptions: string[];
+  accounts: import('../lib/store').NetWorthAccount[];
   onChange: (patch: Partial<OneTimeItem>) => void;
   onDelete: () => void;
 }) {
@@ -228,8 +178,9 @@ function OneTimeExpenseCard({ item, currency, monthOptions, onChange, onDelete }
   const [saved, setSaved] = useState(false);
   const inp = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100';
   const color = CATEGORY_COLORS[item.category || ''] || '#64748b';
+
   function saveAmt() {
-    const n = asNum(amtDraft);
+    const n = parseMoney(amtDraft);
     onChange({ amount: n });
     setAmtDraft(n > 0 ? money(n, currency) : '');
     setSaved(true);
@@ -252,20 +203,20 @@ function OneTimeExpenseCard({ item, currency, monthOptions, onChange, onDelete }
               </span>
             )}
           </div>
-          <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{monthLabel(item.monthISO)}</div>
+          <div className="text-xs text-slate-400 dark:text-slate-300 mt-0.5">{monthLabel(item.monthISO)}</div>
         </div>
         <div className="font-semibold text-rose-600 dark:text-rose-400 tabular-nums flex-shrink-0">{money(item.amount, currency)}</div>
-        <div className="text-slate-400 dark:text-slate-500"><ChevronIcon open={expanded} /></div>
+        <div className="text-slate-400 dark:text-slate-300"><ChevronIcon open={expanded} /></div>
       </div>
       {expanded && (
         <div className="border-t border-slate-100 dark:border-slate-800 px-4 pb-4 pt-4 space-y-3">
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Description</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-200 mb-1">Description</label>
             <input className={inp} value={item.name} placeholder="e.g. Car repair"
               onChange={e => onChange({ name: e.target.value })} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Category</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-200 mb-1">Category</label>
             <select className={inp} value={item.category || ''}
               onChange={e => onChange({ category: (e.target.value as ExpenseCategory) || undefined })}>
               <option value="">No category</option>
@@ -273,18 +224,30 @@ function OneTimeExpenseCard({ item, currency, monthOptions, onChange, onDelete }
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Month</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-200 mb-1">Month</label>
             <select className={inp} value={item.monthISO} onChange={e => onChange({ monthISO: e.target.value })}>
               {monthOptions.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
             </select>
           </div>
+          {accounts.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-200 mb-1">Account (for allocation pie)</label>
+              <select className={inp} value={item.accountId || ''} onChange={e => onChange({ accountId: e.target.value || undefined })}>
+                <option value="">— None —</option>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          )}
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Amount</label>
-            <input className={inp} type="text" inputMode="decimal" value={amtDraft}
-              placeholder="0"
-              onChange={e => setAmtDraft(e.target.value)}
-              onFocus={e => { setAmtDraft(String(asNum(amtDraft) || '')); e.target.select(); }}
-              onBlur={saveAmt} />
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-200 mb-1">Amount</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 dark:text-slate-200 pointer-events-none select-none">$</span>
+              <input className={inp + ' pl-6'} type="text" inputMode="decimal" value={amtDraft}
+                placeholder="0"
+                onChange={e => setAmtDraft(e.target.value)}
+                onFocus={e => { setAmtDraft(String(parseMoney(amtDraft) || '')); e.target.select(); }}
+                onBlur={saveAmt} />
+            </div>
           </div>
           <button
             className="w-full rounded-xl bg-blue-600 py-3.5 text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800 transition-colors"
@@ -310,8 +273,18 @@ export default function ExpensesPage() {
   useEffect(() => {
     const p = loadPlan();
     setPlan(p);
-    setEditMonth(p.startMonthISO || '');
+    const n = new Date(); setEditMonth(`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`);
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    function load() { setPlan(loadPlan()); }
+    window.addEventListener('finance_planner_plan_updated', load);
+    window.addEventListener('storage', load);
+    return () => {
+      window.removeEventListener('finance_planner_plan_updated', load);
+      window.removeEventListener('storage', load);
+    };
   }, []);
 
   function saveUpdate(fn: (p: Plan) => Plan) {
@@ -339,9 +312,9 @@ export default function ExpensesPage() {
 
   const setAmt = (item: RecurringItem, amount: number) => {
     if (item.behavior === 'carryForward')
-      saveUpdate(p => ({ ...p, expenses: (p.expenses || []).map(x => x.id === item.id ? { ...x, changes: upsert(x.changes || [], editMonth, amount) } : x) }));
+      saveUpdate(p => ({ ...p, expenses: (p.expenses || []).map(x => x.id === item.id ? { ...x, changes: upsertDated(x.changes || [], editMonth, amount) } : x) }));
     else
-      saveUpdate(p => ({ ...p, expenses: (p.expenses || []).map(x => x.id === item.id ? { ...x, overrides: upsert(x.overrides || [], editMonth, amount) } : x) }));
+      saveUpdate(p => ({ ...p, expenses: (p.expenses || []).map(x => x.id === item.id ? { ...x, overrides: upsertDated(x.overrides || [], editMonth, amount) } : x) }));
   };
 
   const recTotal = re.reduce((s, it) => s + amountForMonth(it, editMonth), 0);
@@ -349,11 +322,10 @@ export default function ExpensesPage() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Expenses</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Fixed and variable monthly expenses.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-200">Fixed and variable monthly expenses.</p>
         </div>
         <select
           value={editMonth}
@@ -364,18 +336,15 @@ export default function ExpensesPage() {
         </select>
       </div>
 
-      {/* Two-column layout */}
       <div className="flex flex-wrap gap-6 items-start">
-        {/* Left — list */}
         <div className="space-y-3" style={{flex:'3 1 320px', minWidth:0}}>
-          {/* Summary */}
           <div className="grid gap-3" style={{gridTemplateColumns:'repeat(3,minmax(0,1fr))'}}>
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <div className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Recurring</div>
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-300">Recurring</div>
               <div className="mt-1 text-xl font-bold tabular-nums text-rose-600 dark:text-rose-400">{money(recTotal, cur)}</div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <div className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">One-time</div>
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-300">One-time</div>
               <div className="mt-1 text-xl font-bold tabular-nums text-rose-600 dark:text-rose-400">{money(otTotal, cur)}</div>
             </div>
             <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 shadow-sm dark:border-rose-900/30 dark:bg-rose-500/10">
@@ -384,7 +353,6 @@ export default function ExpensesPage() {
             </div>
           </div>
 
-          {/* Recurring expenses */}
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Recurring Expenses</div>
@@ -409,13 +377,12 @@ export default function ExpensesPage() {
               ))}
               {!re.length && (
                 <div className="rounded-xl border border-dashed border-slate-200 px-4 py-3 dark:border-slate-700">
-                  <div className="text-sm text-slate-400 dark:text-slate-500">No recurring expenses yet.</div>
+                  <div className="text-sm text-slate-400 dark:text-slate-300">No recurring expenses yet.</div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* One-time expenses */}
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">One-time Expenses</div>
@@ -432,20 +399,20 @@ export default function ExpensesPage() {
                   item={item}
                   currency={cur}
                   monthOptions={monthOptions}
+                  accounts={plan.netWorthAccounts || []}
                   onChange={patch => saveUpdate(p => ({ ...p, oneTimeExpenses: (p.oneTimeExpenses || []).map(x => x.id === item.id ? { ...x, ...patch } : x) }))}
                   onDelete={() => saveUpdate(p => ({ ...p, oneTimeExpenses: (p.oneTimeExpenses || []).filter(x => x.id !== item.id) }))}
                 />
               ))}
               {!oe.length && (
                 <div className="rounded-xl border border-dashed border-slate-200 px-4 py-3 dark:border-slate-700">
-                  <div className="text-sm text-slate-400 dark:text-slate-500">No one-time expenses — add car repairs, medical bills, vacations, or any non-recurring cost.</div>
+                  <div className="text-sm text-slate-400 dark:text-slate-300">No one-time expenses — add car repairs, medical bills, vacations, or any non-recurring cost.</div>
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Right — category breakdown */}
         <div style={{flex:'2 1 260px', minWidth:0}}>
           <CategoryBreakdownChart items={re} oneTime={oe} editMonth={editMonth} currency={cur} />
         </div>

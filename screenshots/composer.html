@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<!--
+  Finance Planner — App Store Screenshot Composer
+  ─────────────────────────────────────────────────
+  HOW TO USE:
+  1. Make sure your dev server is running:  npm run dev -- -p 3100
+  2. Open this file in Chrome (File → Open File)
+  3. For each slide, use Chrome DevTools:
+       • Press F12 → Toggle device toolbar (Ctrl+Shift+M)
+       • Set dimensions to:
+           iOS App Store  → 1290 × 2796
+           Google Play    → 1080 × 1920
+       • Set DPR to 1
+  4. Click a slide to focus it full-screen, then take a screenshot:
+       • DevTools → three-dot menu → "Capture screenshot"
+       OR press Ctrl+Shift+P → "Capture full size screenshot"
+  5. Repeat for each slide.
+  ─────────────────────────────────────────────────
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Screenshot Composer — Finance Planner</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #1e293b;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: 40px 20px;
+  }
+
+  h1 {
+    color: #94a3b8;
+    font-size: 14px;
+    text-align: center;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  p.sub {
+    color: #64748b;
+    font-size: 12px;
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  /* ── slide grid ── */
+  .grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    justify-content: center;
+  }
+
+  /* ── individual slide — 390×844 (iPhone 14 proportions) ── */
+  .slide {
+    width: 390px;
+    height: 844px;
+    border-radius: 48px;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    flex-shrink: 0;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+    transition: transform 0.2s;
+  }
+  .slide:hover { transform: scale(1.01); }
+
+  /* gradient backgrounds per slide */
+  .slide-1 { background: linear-gradient(160deg, #0f172a 0%, #1e3a8a 60%, #1d4ed8 100%); }
+  .slide-2 { background: linear-gradient(160deg, #0f172a 0%, #134e4a 60%, #0f766e 100%); }
+  .slide-3 { background: linear-gradient(160deg, #0f172a 0%, #1e1b4b 60%, #4338ca 100%); }
+  .slide-4 { background: linear-gradient(160deg, #1e293b 0%, #0f172a 100%); }
+  .slide-5 { background: linear-gradient(160deg, #0f172a 0%, #4a1d96 60%, #7c3aed 100%); }
+
+  /* ── headline area ── */
+  .headline {
+    padding: 52px 32px 20px;
+    text-align: center;
+    position: relative;
+    z-index: 2;
+  }
+  .tagline {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.55);
+    margin-bottom: 12px;
+  }
+  .headline h2 {
+    font-size: 28px;
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1.2;
+    letter-spacing: -0.5px;
+  }
+  .headline h2 span { color: #60a5fa; }
+
+  /* ── phone frame wrapper ── */
+  .phone-wrap {
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 320px;
+    height: 620px;
+    z-index: 3;
+  }
+
+  /* the "phone" shape */
+  .phone-frame {
+    width: 320px;
+    height: 620px;
+    border-radius: 44px;
+    border: 8px solid rgba(255,255,255,0.18);
+    background: #000;
+    overflow: hidden;
+    position: relative;
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.06),
+      0 40px 80px rgba(0,0,0,0.7);
+  }
+
+  /* dynamic island notch */
+  .notch {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 96px;
+    height: 28px;
+    background: #000;
+    border-radius: 20px;
+    z-index: 10;
+  }
+
+  /* the iframe showing the live app */
+  .phone-frame iframe {
+    width: 375px;
+    height: 812px;
+    border: none;
+    transform: scale(0.819);
+    transform-origin: top left;
+    pointer-events: none;
+  }
+
+  /* ── bottom badge ── */
+  .badge {
+    position: absolute;
+    bottom: 36px;
+    left: 0; right: 0;
+    text-align: center;
+    z-index: 4;
+  }
+  .badge span {
+    display: inline-block;
+    background: rgba(255,255,255,0.12);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.85);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 20px;
+    border-radius: 100px;
+    letter-spacing: 0.3px;
+  }
+
+  /* ── label under each slide ── */
+  .label {
+    text-align: center;
+    color: #475569;
+    font-size: 12px;
+    margin-top: 12px;
+    font-weight: 500;
+  }
+
+  /* ── fullscreen mode (click a slide) ── */
+  .slide.fullscreen {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+    z-index: 999;
+    cursor: default;
+  }
+  .slide.fullscreen .phone-wrap {
+    width: calc(100vh * 0.38);
+    height: calc(100vh * 0.735);
+    bottom: calc(100vh * -0.012);
+  }
+  .slide.fullscreen .phone-frame {
+    width: 100%;
+    height: 100%;
+  }
+  .close-btn {
+    display: none;
+    position: fixed;
+    top: 20px; right: 20px;
+    z-index: 1000;
+    background: rgba(255,255,255,0.15);
+    border: none;
+    color: #fff;
+    font-size: 24px;
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+  }
+  .close-btn.visible { display: flex; }
+</style>
+</head>
+<body>
+
+<h1>Finance Planner — Store Screenshots</h1>
+<p class="sub">Click any slide to fullscreen it, then use DevTools "Capture screenshot" · Dev server must be running on port 3100</p>
+
+<div class="grid" id="grid">
+
+  <!-- SLIDE 1: Dashboard dark — hero -->
+  <div>
+  <div class="slide slide-1" onclick="toggle(this)" data-url="/#dashboard">
+    <div class="headline">
+      <div class="tagline">Financial clarity</div>
+      <h2>Your complete<br><span>financial picture</span></h2>
+    </div>
+    <div class="phone-wrap">
+      <div class="phone-frame">
+        <div class="notch"></div>
+        <iframe src="http://localhost:3100/" id="f1"
+          onload="darkMode(this)"></iframe>
+      </div>
+    </div>
+    <div class="badge"><span>🔒 100% private · stored on your device</span></div>
+  </div>
+  <div class="label">Slide 1 — Dashboard</div>
+  </div>
+
+  <!-- SLIDE 2: Net Worth dark -->
+  <div>
+  <div class="slide slide-2" onclick="toggle(this)">
+    <div class="headline">
+      <div class="tagline">All accounts, one place</div>
+      <h2>Track <span>every dollar</span><br>you own</h2>
+    </div>
+    <div class="phone-wrap">
+      <div class="phone-frame">
+        <div class="notch"></div>
+        <iframe src="http://localhost:3100/net-worth"
+          onload="darkMode(this)"></iframe>
+      </div>
+    </div>
+    <div class="badge"><span>Checking · Savings · 401(k) · Brokerage</span></div>
+  </div>
+  <div class="label">Slide 2 — Net Worth</div>
+  </div>
+
+  <!-- SLIDE 3: Budget light -->
+  <div>
+  <div class="slide slide-3" onclick="toggle(this)">
+    <div class="headline">
+      <div class="tagline">Spend smarter</div>
+      <h2>Know exactly<br>where your <span>money goes</span></h2>
+    </div>
+    <div class="phone-wrap">
+      <div class="phone-frame">
+        <div class="notch"></div>
+        <iframe src="http://localhost:3100/budget"></iframe>
+      </div>
+    </div>
+    <div class="badge"><span>Visual spending categories with live progress</span></div>
+  </div>
+  <div class="label">Slide 3 — Budget</div>
+  </div>
+
+  <!-- SLIDE 4: Cash Flow light -->
+  <div>
+  <div class="slide slide-4" onclick="toggle(this)">
+    <div class="headline">
+      <div class="tagline">Plan ahead</div>
+      <h2>Project your<br><span>financial future</span><br>month by month</h2>
+    </div>
+    <div class="phone-wrap">
+      <div class="phone-frame">
+        <div class="notch"></div>
+        <iframe src="http://localhost:3100/cashflow"></iframe>
+      </div>
+    </div>
+    <div class="badge"><span>24-month cash flow projection</span></div>
+  </div>
+  <div class="label">Slide 4 — Cash Flow</div>
+  </div>
+
+  <!-- SLIDE 5: Dashboard dark — projection chart -->
+  <div>
+  <div class="slide slide-5" onclick="toggle(this)">
+    <div class="headline">
+      <div class="tagline">See the finish line</div>
+      <h2>Know exactly<br>when you hit<br>your <span>$500K goal</span></h2>
+    </div>
+    <div class="phone-wrap">
+      <div class="phone-frame">
+        <div class="notch"></div>
+        <iframe src="http://localhost:3100/"
+          onload="darkModeScroll(this, 480)"></iframe>
+      </div>
+    </div>
+    <div class="badge"><span>5-year net worth projection · On Track ✓</span></div>
+  </div>
+  <div class="label">Slide 5 — Projection</div>
+  </div>
+
+</div><!-- /grid -->
+
+<button class="close-btn" id="closeBtn" onclick="closeAll()">✕</button>
+
+<script>
+  // Inject stored test data into every iframe
+  const PLAN = JSON.stringify({
+    currency:'USD', startMonthISO:'2025-01', netWorthViewMonthISO:'2026-04',
+    startingNetWorth:0, goalNetWorth:500000, expectedReturnPct:7,
+    income:[{id:'i1',kind:'income',name:'Salary',defaultAmount:7500,behavior:'carryForward',changes:[],overrides:[]}],
+    expenses:[
+      {id:'e1',kind:'expense',name:'Rent',defaultAmount:1800,behavior:'carryForward',changes:[],overrides:[],category:'Housing'},
+      {id:'e2',kind:'expense',name:'Groceries',defaultAmount:520,behavior:'carryForward',changes:[],overrides:[],category:'Food & Dining'},
+      {id:'e3',kind:'expense',name:'Gas',defaultAmount:180,behavior:'carryForward',changes:[],overrides:[],category:'Transport'},
+      {id:'e4',kind:'expense',name:'Netflix',defaultAmount:18,behavior:'carryForward',changes:[],overrides:[],category:'Entertainment'},
+      {id:'e5',kind:'expense',name:'Gym',defaultAmount:45,behavior:'carryForward',changes:[],overrides:[],category:'Healthcare'},
+    ],
+    oneTimeIncome:[], oneTimeExpenses:[],
+    netWorthAccounts:[
+      {id:'a1',name:'Checking',type:'cash',balances:[{monthISO:'2025-01',amount:8000},{monthISO:'2026-04',amount:12400}]},
+      {id:'a2',name:'Savings',type:'cash',balances:[{monthISO:'2025-01',amount:22000},{monthISO:'2026-04',amount:38200}]},
+      {id:'a3',name:'401(k)',type:'retirement',balances:[{monthISO:'2025-01',amount:45000},{monthISO:'2026-04',amount:61800}]},
+      {id:'a4',name:'Brokerage',type:'taxable',balances:[{monthISO:'2025-01',amount:18000},{monthISO:'2026-04',amount:24600}]},
+    ],
+    netWorthMode:'hybrid',
+    budgets:{Housing:2000,'Food & Dining':600,Transport:220,Entertainment:50,Healthcare:80},
+    savedAt: new Date().toISOString()
+  });
+
+  function injectData(iframe) {
+    try {
+      const w = iframe.contentWindow;
+      w.localStorage.setItem('finance_planner_onboarded_v1', 'done');
+      w.localStorage.setItem('finance_planner_plan_v2', PLAN);
+    } catch(e) { /* cross-origin guard */ }
+  }
+
+  function darkMode(iframe) {
+    injectData(iframe);
+    try {
+      iframe.contentWindow.document.documentElement.classList.add('dark');
+      iframe.contentWindow.location.reload();
+    } catch(e) {}
+  }
+
+  function darkModeScroll(iframe, scrollY) {
+    injectData(iframe);
+    setTimeout(() => {
+      try {
+        iframe.contentWindow.document.documentElement.classList.add('dark');
+        iframe.contentWindow.location.reload();
+        setTimeout(() => {
+          try { iframe.contentWindow.scrollTo(0, scrollY); } catch(e) {}
+        }, 1800);
+      } catch(e) {}
+    }, 500);
+  }
+
+  // Inject data when light-mode iframes load
+  document.querySelectorAll('iframe:not([onload])').forEach(f => {
+    f.addEventListener('load', () => injectData(f));
+  });
+
+  // Fullscreen toggle
+  let active = null;
+  function toggle(el) {
+    if (active) { active.classList.remove('fullscreen'); active = null; document.getElementById('closeBtn').classList.remove('visible'); return; }
+    el.classList.add('fullscreen');
+    active = el;
+    document.getElementById('closeBtn').classList.add('visible');
+  }
+  function closeAll() {
+    if (active) { active.classList.remove('fullscreen'); active = null; }
+    document.getElementById('closeBtn').classList.remove('visible');
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAll(); });
+</script>
+</body>
+</html>

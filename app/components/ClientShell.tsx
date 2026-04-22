@@ -64,7 +64,7 @@ function NavLink({ href, label, active }: { href: string; label: string; active:
 
 function TabItem({ href, label, active, icon }: { href: string; label: string; active: boolean; icon: React.ReactNode }) {
   return (
-    <Link href={href} className={"flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs font-medium transition-colors "+(active?"text-blue-600 dark:text-blue-400":"text-slate-500 dark:text-slate-500")}>
+    <Link href={href} className={"flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs font-medium transition-colors "+(active?"text-blue-600 dark:text-blue-400":"text-slate-500 dark:text-slate-400")}>
       {icon}
       <span>{label}</span>
     </Link>
@@ -73,9 +73,9 @@ function TabItem({ href, label, active, icon }: { href: string; label: string; a
 
 function MoreMenu({ isMore, onClose }: { isMore: boolean; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-40 flex flex-col justify-end md:hidden" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex flex-col justify-end lg:hidden" onClick={onClose}>
       <div className="mx-3 mb-20 rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900" onClick={e => e.stopPropagation()}>
-        <div className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">More</div>
+        <div className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-200">More</div>
         <Link href="/budget" onClick={onClose} className="flex items-center px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800">Budget</Link>
         <Link href="/assumptions" onClick={onClose} className="flex items-center px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800">Assumptions</Link>
         <Link href="/cashflow" onClick={onClose} className="flex items-center px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800">Cash Flow</Link>
@@ -95,7 +95,16 @@ async function runSync() {
     const serverUrl = window.location.origin;
     const result = await syncPlan(plan, serverUrl);
     if (result.status === 'pulled' && 'plan' in result) {
-      savePlanFromSync(result.plan as any);
+      // Re-read local plan after the network call — user may have saved during the request.
+      // Only overwrite if the server plan is genuinely newer than the current local plan,
+      // and its timestamp is not in the future (guards against corrupted sync files).
+      const currentPlan = loadPlan();
+      const currentMs = currentPlan?.savedAt ? new Date(currentPlan.savedAt).getTime() : 0;
+      const remoteMs = (result.plan as any)?.savedAt ? new Date((result.plan as any).savedAt).getTime() : 0;
+      const nowMs = Date.now();
+      if (remoteMs > currentMs && remoteMs <= nowMs + 60_000) {
+        savePlanFromSync(result.plan as any);
+      }
     }
     if (result.status !== 'error') {
       localStorage.setItem(LAST_SYNCED_KEY, new Date().toISOString());
@@ -155,6 +164,10 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
       setDarkMode(prefersDark);
       if (prefersDark) document.documentElement.classList.add('dark');
     }
+    // Register service worker for offline support
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {/* ignore */});
+    }
     // Initial sync on load
     runSync();
     // Push to server whenever the user saves (but not when we pulled from sync)
@@ -168,17 +181,28 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   const isMore = pathname.startsWith("/assumptions") || pathname.startsWith("/cashflow") || pathname.startsWith("/settings") || pathname.startsWith("/budget");
   return (
     <div className="flex min-h-screen">
-      <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-white/[0.04]">
+      <aside className="hidden lg:flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-white/[0.04]">
         <div className="px-4 py-5 flex-1 overflow-y-auto">
           <div className="mb-6 flex items-center justify-between rounded-2xl bg-blue-50 px-4 py-3 dark:bg-blue-500/10">
-            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Finance Planner</div>
+            <div className="flex items-center gap-2">
+              <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="26" height="26" rx="7" fill="url(#logo-g)"/>
+                <polyline points="5,18 10,12 14,15 21,7" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                <polyline points="18,7 21,7 21,10" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                <defs><linearGradient id="logo-g" x1="0" y1="0" x2="26" y2="26" gradientUnits="userSpaceOnUse"><stop stopColor="#1d4ed8"/><stop offset="1" stopColor="#059669"/></linearGradient></defs>
+              </svg>
+              <div>
+                <div className="text-xs font-bold text-blue-700 dark:text-blue-300 leading-none">NetWorth</div>
+                <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 leading-none mt-0.5">Finance Planner</div>
+              </div>
+            </div>
             <div className="flex items-center gap-1">
               <button onClick={toggleDark} title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-                className="rounded-lg p-1 text-slate-500 hover:bg-blue-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-blue-500/20 dark:hover:text-slate-100">
+                className="rounded-lg p-1 text-slate-500 hover:bg-blue-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-blue-500/20 dark:hover:text-slate-100">
                 {darkMode ? <IconSun /> : <IconMoon />}
               </button>
               <button onClick={toggleBalances} title={balancesHidden ? "Show balances" : "Hide balances"}
-                className="rounded-lg p-1 text-slate-500 hover:bg-blue-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-blue-500/20 dark:hover:text-slate-100">
+                className="rounded-lg p-1 text-slate-500 hover:bg-blue-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-blue-500/20 dark:hover:text-slate-100">
                 <IconEye hidden={balancesHidden} />
               </button>
             </div>
@@ -197,15 +221,26 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
-        <header className="flex md:hidden items-center justify-between border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-black/80">
-          <span className="text-base font-semibold text-slate-900 dark:text-slate-100">Finance Planner</span>
+        <header className="flex lg:hidden items-center justify-between border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-black/80">
+          <div className="flex items-center gap-2">
+            <svg width="24" height="24" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="26" height="26" rx="7" fill="url(#logo-m)"/>
+              <polyline points="5,18 10,12 14,15 21,7" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+              <polyline points="18,7 21,7 21,10" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+              <defs><linearGradient id="logo-m" x1="0" y1="0" x2="26" y2="26" gradientUnits="userSpaceOnUse"><stop stopColor="#1d4ed8"/><stop offset="1" stopColor="#059669"/></linearGradient></defs>
+            </svg>
+            <div>
+              <div className="text-sm font-bold text-slate-900 dark:text-slate-100 leading-none">NetWorth</div>
+              <div className="text-[10px] font-medium text-slate-400 leading-none mt-0.5">Finance Planner</div>
+            </div>
+          </div>
           <div className="flex items-center gap-1">
             <button onClick={toggleDark} title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100">
+              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-slate-100">
               {darkMode ? <IconSun /> : <IconMoon />}
             </button>
             <button onClick={toggleBalances} title={balancesHidden ? "Show balances" : "Hide balances"}
-              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100">
+              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-white/10 dark:hover:text-slate-100">
               <IconEye hidden={balancesHidden} />
             </button>
           </div>
@@ -215,12 +250,12 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
       {mounted && (
         <>
           {showMore && <MoreMenu isMore={isMore} onClose={() => setShowMore(false)} />}
-          <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-black/90" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+          <nav className="fixed bottom-0 left-0 right-0 z-50 flex lg:hidden border-t border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-black/90" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
             <TabItem href="/" label="Dashboard" active={!showMore && pathname==="/"} icon={<IconDashboard active={!showMore && pathname==="/"} />} />
             <TabItem href="/income" label="Income" active={!showMore && pathname.startsWith("/income")} icon={<IconIncome active={!showMore && pathname.startsWith("/income")} />} />
             <TabItem href="/expenses" label="Expenses" active={!showMore && pathname.startsWith("/expenses")} icon={<IconExpenses active={!showMore && pathname.startsWith("/expenses")} />} />
             <TabItem href="/net-worth" label="Net Worth" active={!showMore && pathname.startsWith("/net-worth")} icon={<IconNetWorth active={!showMore && pathname.startsWith("/net-worth")} />} />
-            <button onClick={() => setShowMore(s => !s)} className={"flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs font-medium transition-colors "+(showMore||isMore?"text-blue-600 dark:text-blue-400":"text-slate-500 dark:text-slate-500")}>
+            <button onClick={() => setShowMore(s => !s)} className={"flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs font-medium transition-colors "+(showMore||isMore?"text-blue-600 dark:text-blue-400":"text-slate-500 dark:text-slate-400")}>
               <IconMore active={showMore||isMore} />
               <span>More</span>
             </button>

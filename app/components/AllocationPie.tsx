@@ -13,6 +13,7 @@ interface Props {
   slices: AllocationSlice[];
   currency: string;
   title?: string;
+  total?: number; // optional override — pass projected net worth so center matches main tile
 }
 
 function abbreviate(n: number): string {
@@ -22,11 +23,12 @@ function abbreviate(n: number): string {
   return `$${Math.round(n)}`;
 }
 
-function DonutChart({ slices }: { slices: AllocationSlice[] }) {
+function DonutChart({ slices, totalOverride }: { slices: AllocationSlice[]; totalOverride?: number }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  const total = slices.reduce((s, x) => s + Math.max(0, x.value), 0);
+  const sliceSum = slices.reduce((s, x) => s + Math.max(0, x.value), 0);
+  const displayTotal = totalOverride ?? sliceSum;
 
   if (!mounted) {
     return (
@@ -36,7 +38,7 @@ function DonutChart({ slices }: { slices: AllocationSlice[] }) {
     );
   }
 
-  if (total <= 0) {
+  if (sliceSum <= 0) {
     return (
       <div className="flex items-center justify-center" style={{ width: 160, height: 160 }}>
         <svg viewBox="0 0 160 160" width={160} height={160}>
@@ -51,10 +53,11 @@ function DonutChart({ slices }: { slices: AllocationSlice[] }) {
   const circumference = 2 * Math.PI * r;
   let offset = 0;
 
+  // Segments are drawn proportionally to sliceSum (actual account allocation)
   const segments = slices
     .filter((s) => s.value > 0)
     .map((s) => {
-      const pct = s.value / total;
+      const pct = s.value / sliceSum;
       const dashArray = pct * circumference;
       const dashOffset = -(offset * circumference);
       offset += pct;
@@ -79,15 +82,16 @@ function DonutChart({ slices }: { slices: AllocationSlice[] }) {
         ))}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-        <span className="text-base font-bold text-slate-900 dark:text-slate-100 tabular-nums">{abbreviate(total)}</span>
-        <span className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">total</span>
+        <span className="text-base font-bold text-slate-900 dark:text-slate-100 tabular-nums">{abbreviate(displayTotal)}</span>
+        <span className="text-xs text-slate-400 dark:text-slate-300 mt-0.5">total</span>
       </div>
     </div>
   );
 }
 
-export function AllocationPie({ slices, currency, title }: Props) {
-  const total = slices.reduce((s, x) => s + Math.max(0, x.value), 0);
+export function AllocationPie({ slices, currency, title, total: totalOverride }: Props) {
+  const sliceSum = slices.reduce((s, x) => s + Math.max(0, x.value), 0);
+  const displayTotal = totalOverride ?? sliceSum;
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -95,10 +99,10 @@ export function AllocationPie({ slices, currency, title }: Props) {
         <div className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</div>
       )}
       <div className="flex flex-col items-center gap-4">
-        <DonutChart slices={slices} />
+        <DonutChart slices={slices} totalOverride={totalOverride} />
         <div className="w-full space-y-1.5">
           {slices.map((s) => {
-            const pct = total > 0 ? Math.round((Math.max(0, s.value) / total) * 100) : 0;
+            const pct = displayTotal > 0 ? Math.round((Math.max(0, s.value) / displayTotal) * 100) : 0;
             return (
               <div key={s.key} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5">
@@ -106,7 +110,7 @@ export function AllocationPie({ slices, currency, title }: Props) {
                   <span className="text-slate-900 dark:text-slate-100">{s.label}</span>
                 </div>
                 <div className="flex items-center gap-2 tabular-nums">
-                  <span className="text-slate-500 dark:text-slate-400">{pct}%</span>
+                  <span className="text-slate-500 dark:text-slate-200">{pct}%</span>
                   <span className="font-medium text-slate-900 dark:text-slate-100 min-w-[60px] text-right">
                     {new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(Math.max(0, s.value))}
                   </span>

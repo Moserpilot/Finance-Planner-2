@@ -2,36 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { AllocationPie } from '../components/AllocationPie';
-import { buildAllocation, monthTotalForAccount } from '../lib/allocation';
+import { ChevronIcon } from '../components/ChevronIcon';
+import { buildAllocation } from '../lib/allocation';
+import { accountBalanceForMonth, computedAccountBalance, netWorthProjected } from '../lib/engine';
 import type { NetWorthAccountType, Plan } from '../lib/store';
 import { loadPlan, newNetWorthAccount, savePlan } from '../lib/store';
-
-function addMonthsISO(s: string, add: number) {
-  const ok = /^\d{4}-\d{2}$/.test(s);
-  const y0 = ok ? Number(s.slice(0, 4)) : new Date().getFullYear();
-  const m0 = ok ? Number(s.slice(5, 7)) - 1 : 0;
-  const t = y0 * 12 + m0 + add;
-  return `${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, '0')}`;
-}
-function money(n: number, currency: string) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(Number.isFinite(n) ? n : 0);
-}
-function monthLabel(iso: string) {
-  if (!/^\d{4}-\d{2}$/.test(iso)) return iso;
-  return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(new Date(`${iso}-01T00:00:00`));
-}
-function parseMoney(v: string) {
-  const n = Number(String(v).replace(/[$,%\s,]+/g, ''));
-  return Number.isFinite(n) ? n : 0;
-}
-function upsertDated(arr: { monthISO: string; amount: number }[], monthISO: string, amount: number) {
-  const next = [...arr];
-  const idx = next.findIndex(x => x.monthISO === monthISO);
-  if (idx >= 0) next[idx] = { monthISO, amount };
-  else next.push({ monthISO, amount });
-  next.sort((a, b) => a.monthISO < b.monthISO ? -1 : 1);
-  return next;
-}
+import { addMonthsISO, money, monthLabel, parseMoney, upsertDated } from '../lib/utils';
 
 const TYPE_OPTIONS: NetWorthAccountType[] = ['cash', 'taxable', 'retirement', 'other'];
 
@@ -56,17 +32,6 @@ const TYPE_BADGE: Record<NetWorthAccountType, string> = {
   other: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300',
 };
 
-function ChevronIcon({ open }: { open: boolean }) {
-  return (
-    <svg
-      width="16" height="16" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-      style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
-    >
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  );
-}
 
 export default function NetWorthPage() {
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -77,8 +42,19 @@ export default function NetWorthPage() {
   useEffect(() => {
     const p = loadPlan();
     setPlan(p);
-    setEditMonthISO(p.netWorthViewMonthISO || p.startMonthISO || '2026-01');
+    const n = new Date(); const cur = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
+    setEditMonthISO(cur);
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    function load() { setPlan(loadPlan()); }
+    window.addEventListener('finance_planner_plan_updated', load);
+    window.addEventListener('storage', load);
+    return () => {
+      window.removeEventListener('finance_planner_plan_updated', load);
+      window.removeEventListener('storage', load);
+    };
   }, []);
 
   function update(p: Plan) { setPlan(p); savePlan(p); }
@@ -89,7 +65,10 @@ export default function NetWorthPage() {
     return buildAllocation(plan, editMonthISO);
   }, [plan, editMonthISO]);
 
-  const totalNW = useMemo(() => slices.reduce((s, x) => s + x.value, 0), [slices]);
+  const nwTotal = useMemo(() => {
+    if (!plan) return 0;
+    return netWorthProjected(plan, editMonthISO);
+  }, [plan, editMonthISO]);
 
   const monthOptions = useMemo(() =>
     Array.from({ length: 120 }, (_, i) => addMonthsISO(plan?.startMonthISO || '2026-01', i)),
@@ -102,7 +81,7 @@ export default function NetWorthPage() {
     <div className="space-y-6">
       <div>
         <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Net Worth</div>
-        <div className="text-sm text-slate-500 dark:text-slate-400">Track your account balances over time.</div>
+        <div className="text-sm text-slate-500 dark:text-slate-200">Track your account balances over time.</div>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-12">
@@ -111,9 +90,9 @@ export default function NetWorthPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
-                <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-0.5">Total net worth</div>
-                <div className="text-4xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-slate-100">{money(totalNW, currency)}</div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">as of {monthLabel(editMonthISO)}</div>
+                <div className="text-xs font-medium text-slate-500 dark:text-slate-200 mb-0.5">Total net worth</div>
+                <div className="text-4xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-slate-100">{money(nwTotal, currency)}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-200 mt-1">as of {monthLabel(editMonthISO)}</div>
               </div>
               <div className="flex items-center gap-3">
                 <select
@@ -141,14 +120,25 @@ export default function NetWorthPage() {
           {/* Account cards */}
           <div className="space-y-3">
             {plan.netWorthAccounts.map(a => {
-              const bal = monthTotalForAccount(plan, a.id, editMonthISO);
+              const bal = computedAccountBalance(plan, a.id, editMonthISO);
+              const startMonth = plan.startMonthISO || '2026-01';
               const isExpanded = expandedId === a.id;
+
+              // Transaction log: one-time items linked to this account up to editMonthISO
+              const linkedIncome = plan.netWorthMode !== 'snapshot'
+                ? (plan.oneTimeIncome || []).filter(x => x.accountId === a.id && x.monthISO >= startMonth && x.monthISO <= editMonthISO && x.amount > 0)
+                : [];
+              const linkedExpenses = plan.netWorthMode !== 'snapshot'
+                ? (plan.oneTimeExpenses || []).filter(x => x.accountId === a.id && x.monthISO >= startMonth && x.monthISO <= editMonthISO && x.amount > 0)
+                : [];
+              const hasTransactions = linkedIncome.length > 0 || linkedExpenses.length > 0;
+
               return (
                 <div
                   key={a.id}
                   className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden"
                 >
-                  {/* Collapsed header — always visible */}
+                  {/* Collapsed header */}
                   <div
                     className="flex items-center gap-3 p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
                     onClick={() => setExpandedId(isExpanded ? null : a.id)}
@@ -162,8 +152,11 @@ export default function NetWorthPage() {
                     </div>
                     <div className="text-right flex-shrink-0">
                       <div className="font-semibold text-slate-900 dark:text-slate-100 tabular-nums">{money(bal, currency)}</div>
+                      {hasTransactions && (
+                        <div className="text-xs text-slate-400 dark:text-slate-300 mt-0.5">{linkedIncome.length + linkedExpenses.length} adjustment{linkedIncome.length + linkedExpenses.length !== 1 ? 's' : ''}</div>
+                      )}
                     </div>
-                    <div className="text-slate-400 dark:text-slate-500 flex-shrink-0">
+                    <div className="text-slate-400 dark:text-slate-300 flex-shrink-0">
                       <ChevronIcon open={isExpanded} />
                     </div>
                   </div>
@@ -172,7 +165,7 @@ export default function NetWorthPage() {
                   {isExpanded && (
                     <div className="border-t border-slate-100 dark:border-slate-800 px-4 pb-4 pt-4 space-y-3">
                       <div>
-                        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Account name</label>
+                        <label className="block text-xs font-medium text-slate-500 dark:text-slate-200 mb-1">Account name</label>
                         <input
                           className="w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:text-slate-100"
                           value={a.name}
@@ -180,7 +173,7 @@ export default function NetWorthPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Account type</label>
+                        <label className="block text-xs font-medium text-slate-500 dark:text-slate-200 mb-1">Account type</label>
                         <select
                           className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                           value={a.type}
@@ -192,11 +185,12 @@ export default function NetWorthPage() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Balance — {monthLabel(editMonthISO)}</label>
+                        <label className="block text-xs font-medium text-slate-500 dark:text-slate-200 mb-1">Base balance — {monthLabel(editMonthISO)}</label>
                         <input
                           className="w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 dark:border-slate-700 dark:text-slate-100"
-                          defaultValue={money(bal, currency)}
-                          key={`${a.id}_${editMonthISO}_${bal}_${currency}`}
+                          inputMode="decimal"
+                          defaultValue={money(accountBalanceForMonth(a, editMonthISO), currency)}
+                          key={`${a.id}_${editMonthISO}_${accountBalanceForMonth(a, editMonthISO)}_${currency}`}
                           onBlur={e => {
                             const amount = parseMoney(e.target.value);
                             setPlan(prev => {
@@ -207,7 +201,34 @@ export default function NetWorthPage() {
                             });
                           }}
                         />
+                        <div className="mt-1 text-xs text-slate-400 dark:text-slate-300">Enter your actual account balance. One-time income/expenses add to this automatically.</div>
                       </div>
+
+                      {/* Transaction log */}
+                      {hasTransactions && (
+                        <div>
+                          <div className="text-xs font-medium text-slate-500 dark:text-slate-200 mb-1.5">One-time adjustments</div>
+                          <div className="space-y-1">
+                            {linkedIncome.map(x => (
+                              <div key={x.id} className="flex items-center justify-between rounded-lg bg-emerald-50 dark:bg-emerald-500/10 px-3 py-1.5">
+                                <span className="text-xs text-slate-600 dark:text-slate-300 truncate">{x.name} · {monthLabel(x.monthISO)}</span>
+                                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums ml-2 flex-shrink-0">+{money(x.amount, currency)}</span>
+                              </div>
+                            ))}
+                            {linkedExpenses.map(x => (
+                              <div key={x.id} className="flex items-center justify-between rounded-lg bg-rose-50 dark:bg-rose-500/10 px-3 py-1.5">
+                                <span className="text-xs text-slate-600 dark:text-slate-300 truncate">{x.name} · {monthLabel(x.monthISO)}</span>
+                                <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 tabular-nums ml-2 flex-shrink-0">−{money(x.amount, currency)}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-2 flex justify-between text-xs font-medium text-slate-600 dark:text-slate-300 px-1">
+                            <span>Computed balance</span>
+                            <span className="tabular-nums">{money(bal, currency)}</span>
+                          </div>
+                        </div>
+                      )}
+
                       <button
                         type="button"
                         className="w-full rounded-xl border border-rose-200 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 dark:border-rose-900/40 dark:text-rose-400 dark:hover:bg-rose-500/10 transition-colors"
@@ -227,15 +248,54 @@ export default function NetWorthPage() {
             {plan.netWorthAccounts.length === 0 && (
               <div className="rounded-2xl border border-dashed border-slate-200 p-10 text-center dark:border-slate-700">
                 <div className="text-3xl mb-3">🏦</div>
-                <div className="text-sm font-medium text-slate-500 dark:text-slate-400">No accounts yet</div>
-                <div className="mt-1 text-xs text-slate-400 dark:text-slate-500">Click "+ Add account" to start tracking your net worth.</div>
+                <div className="text-sm font-medium text-slate-500 dark:text-slate-200">No accounts yet</div>
+                <div className="mt-1 text-xs text-slate-400 dark:text-slate-300">Click "+ Add account" to start tracking your net worth.</div>
               </div>
             )}
           </div>
         </div>
 
-        <div className="xl:col-span-4">
-          <AllocationPie slices={slices} currency={currency} title={`Allocation — ${monthLabel(editMonthISO)}`} />
+        <div className="xl:col-span-4 space-y-4">
+          <AllocationPie slices={slices} currency={currency} title={`Allocation — ${monthLabel(editMonthISO)}`} total={nwTotal} />
+
+          {/* Quick Update */}
+          {plan.netWorthAccounts.length > 0 && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="mb-4">
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Quick Update</div>
+                <div className="text-xs text-slate-400 dark:text-slate-300 mt-0.5">{monthLabel(editMonthISO)}</div>
+              </div>
+              <div className="space-y-2.5">
+                {plan.netWorthAccounts.map(a => {
+                  const current = computedAccountBalance(plan, a.id, editMonthISO);
+                  return (
+                    <div key={a.id} className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0 text-sm text-slate-700 dark:text-slate-300 truncate">{a.name}</div>
+                      <div className="relative flex-shrink-0">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">$</span>
+                        <input
+                          className="w-36 rounded-xl border border-slate-200 bg-slate-50 pl-7 pr-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 tabular-nums"
+                          inputMode="decimal"
+                          defaultValue={current > 0 ? new Intl.NumberFormat('en-US').format(current) : ''}
+                          placeholder="0"
+                          key={`qu_${a.id}_${editMonthISO}_${current}`}
+                          onBlur={e => {
+                            const amount = parseMoney(e.target.value);
+                            setPlan(prev => {
+                              if (!prev) return prev;
+                              const updated = { ...prev, netWorthAccounts: prev.netWorthAccounts.map(x => x.id === a.id ? { ...x, balances: upsertDated(x.balances || [], editMonthISO, amount) } : x) };
+                              savePlan(updated);
+                              return updated;
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

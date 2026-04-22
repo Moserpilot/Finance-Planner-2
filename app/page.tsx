@@ -5,56 +5,16 @@ import { EXPENSE_CATEGORIES, loadPlan } from './lib/store';
 import { Onboarding, hasCompletedOnboarding } from './components/Onboarding';
 import {
   buildNetWorthSeries,
-  netWorthAsOf,
-  latestNetWorthSnapshotMonth,
+  netWorthProjected,
   amountForMonth,
 } from './lib/engine';
 import { NetWorthChart } from './components/NetWorthChart';
+import { addMonthsISO, CATEGORY_COLORS, money, monthLabel as fmtMonthShort, safeCurrency } from './lib/utils';
 
 const MILESTONE_KEY = 'fp_milestones_seen';
 const MILESTONES = [25, 50, 75, 100];
 
-const CATEGORY_COLORS: Record<string, string> = {
-  'Housing': '#3b82f6',
-  'Food & Dining': '#f59e0b',
-  'Transport': '#8b5cf6',
-  'Healthcare': '#ef4444',
-  'Entertainment': '#ec4899',
-  'Shopping': '#14b8a6',
-  'Other': '#64748b',
-};
-
-function safeCurrency(code: string) {
-  const c = (code || '').trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(c)) return 'USD';
-  try {
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: c }).format(0);
-    return c;
-  } catch { return 'USD'; }
-}
-
-function money(n: number, currency: string) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency', currency: safeCurrency(currency), maximumFractionDigits: 0,
-  }).format(Number.isFinite(n) ? n : 0);
-}
-
 function clamp01(x: number) { return Math.max(0, Math.min(1, x)); }
-
-function addMonthsISO(startISO: string, add: number) {
-  const ok = /^\d{4}-\d{2}$/.test(startISO);
-  const y0 = ok ? Number(startISO.slice(0, 4)) : new Date().getFullYear();
-  const m0 = ok ? Number(startISO.slice(5, 7)) - 1 : 0;
-  const t = y0 * 12 + m0 + add;
-  const y = Math.floor(t / 12);
-  const m = t % 12;
-  return `${y}-${String(m + 1).padStart(2, '0')}`;
-}
-
-function fmtMonthShort(iso: string) {
-  if (!/^\d{4}-\d{2}$/.test(iso)) return iso;
-  return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(new Date(`${iso}-01T00:00:00`));
-}
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 function SkeletonDashboard() {
@@ -158,12 +118,12 @@ function Kpi({ label, value, tone, sub, delta, currency, invertDelta, extra }: {
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <div className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate">{label}</div>
+      <div className="text-xs font-medium text-slate-500 dark:text-slate-200 truncate">{label}</div>
       <div className={`mt-1 text-xl font-bold tracking-tight tabular-nums ${toneText}`}>{value}</div>
-      {sub && <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{sub}</div>}
+      {sub && <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-200">{sub}</div>}
       {delta != null && delta !== 0 && (
         <div className={`mt-0.5 text-xs font-medium tabular-nums ${deltaColor}`}>
-          {deltaPositive ? '↑' : '↓'} {fmtDelta(delta)} vs last mo
+          {deltaPositive ? '↑' : '↓'} {fmtDelta(delta)} vs last month
         </div>
       )}
       {extra}
@@ -292,29 +252,17 @@ export default function DashboardPage() {
 
   // ── derived values ────────────────────────────────────────────────────────
   const netTone: 'positive' | 'negative' = totals.net >= 0 ? 'positive' : 'negative';
-  const startMonth = plan.startMonthISO || '2026-01';
-  const latestSnap = latestNetWorthSnapshotMonth(plan);
-  const asOfMonth = plan.netWorthMode === 'projection' ? startMonth : (latestSnap ?? startMonth);
-  const rawKpi = netWorthAsOf(plan, asOfMonth)?.netWorth ?? 0;
-  const oneTimeKpiAdj = plan.netWorthMode !== 'snapshot'
-    ? (plan.oneTimeIncome || []).filter(x => x.monthISO >= startMonth && x.monthISO <= thisMonthISO && Number.isFinite(x.amount)).reduce((s, x) => s + x.amount, 0)
-    - (plan.oneTimeExpenses || []).filter(x => x.monthISO >= startMonth && x.monthISO <= thisMonthISO && Number.isFinite(x.amount)).reduce((s, x) => s + x.amount, 0)
-    : 0;
-  const netWorthKpi = rawKpi + oneTimeKpiAdj;
+
+  // Projected net worth: includes recurring cash flow (not just static account snapshots)
+  const netWorthKpi = netWorthProjected(plan, thisMonthISO);
+  const prevNetWorthKpi = netWorthProjected(plan, prevMonthISO);
+  const nwDelta = netWorthKpi - prevNetWorthKpi;
 
   const projectedNW = series.length ? series[series.length - 1].netWorth : netWorthKpi;
   const curPct = goal > 0 ? clamp01(netWorthKpi / goal) : 0;
   const projPct = goal > 0 ? clamp01(projectedNW / goal) : 0;
   const windowEndISO = addMonthsISO(startISO, windowMonths);
   const chartWindowLabel = `${fmtMonthShort(startISO)} – ${fmtMonthShort(windowEndISO)}`;
-
-  // NW delta: compare current month's projected NW vs previous month (using monthIndex)
-  const _sY = Number(startMonth.slice(0, 4)), _sM = Number(startMonth.slice(5, 7)) - 1;
-  const _nY = Number(thisMonthISO.slice(0, 4)), _nM = Number(thisMonthISO.slice(5, 7)) - 1;
-  const thisMonthIdx = (_nY - _sY) * 12 + (_nM - _sM);
-  const nwThisMonth = series.find(p => p.monthIndex === thisMonthIdx)?.netWorth ?? netWorthKpi;
-  const nwPrevMonth = series.find(p => p.monthIndex === thisMonthIdx - 1)?.netWorth ?? netWorthKpi;
-  const nwDelta = nwThisMonth - nwPrevMonth;
 
   // ── milestone check (deferred so setState doesn't fire inside render) ────
   if (goal > 0 && netWorthKpi > 0 && milestoneToast === null) {
@@ -344,49 +292,52 @@ export default function DashboardPage() {
 
       <div>
         <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Dashboard</div>
-        <div className="text-sm text-slate-500 dark:text-slate-400">Your complete financial picture — 100% private, stored only on your device.</div>
+        <div className="text-sm text-slate-500 dark:text-slate-200">Your complete financial picture — 100% private, stored only on your device.</div>
       </div>
 
       {/* ── Net Worth Hero Card ─────────────────────────────────────────────── */}
       <div className="rounded-2xl overflow-hidden shadow-sm" style={{background:'linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 60%,#2563eb 100%)'}}>
-        <div className="px-6 py-5 flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-base font-semibold text-blue-100 mb-1 uppercase tracking-widest">Net Worth</div>
-            <div className="text-6xl font-bold tracking-tight tabular-nums text-white">
-              {money(netWorthKpi, cur)}
-            </div>
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <span className="text-sm text-blue-200">as of {fmtMonthShort(asOfMonth)}</span>
-              {nwDelta !== 0 && (
-                <span className={`text-sm font-semibold tabular-nums px-2 py-0.5 rounded-full ${nwDelta > 0 ? 'bg-emerald-500/20 text-emerald-200' : 'bg-rose-500/20 text-rose-200'}`}>
-                  {nwDelta > 0 ? '↑' : '↓'} {money(Math.abs(nwDelta), cur)}
-                </span>
-              )}
-              {goal > 0 && (
-                <span className={`text-sm font-semibold px-2 py-0.5 rounded-full ${monthsToGoal !== null ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-200'}`}>
-                  {monthsToGoal !== null ? '✓ On Track' : 'Behind'}
-                </span>
-              )}
-            </div>
+        <div className="px-5 py-5">
+          {/* Label row */}
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs font-semibold text-blue-100 uppercase tracking-widest">Net Worth</div>
+            {goal > 0 && (
+              <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${monthsToGoal !== null ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-200'}`}>
+                {monthsToGoal !== null ? '✓ On Track' : 'Behind'}
+              </span>
+            )}
           </div>
+          {/* Amount — scales down on narrow screens */}
+          <div className="text-4xl sm:text-5xl font-bold tracking-tight tabular-nums text-white leading-none">
+            {money(netWorthKpi, cur)}
+          </div>
+          {/* As-of + delta */}
+          <div className="mt-2 flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-blue-200">as of {fmtMonthShort(thisMonthISO)}</span>
+            {nwDelta !== 0 && prevNetWorthKpi > 0 && (
+              <span className={`text-sm font-semibold tabular-nums px-2 py-0.5 rounded-full ${nwDelta > 0 ? 'bg-emerald-500/20 text-emerald-200' : 'bg-rose-500/20 text-rose-200'}`}>
+                {nwDelta > 0 ? '↑' : '↓'} {money(Math.abs(nwDelta), cur)}
+              </span>
+            )}
+          </div>
+          {/* Progress row — ring + goal text side by side, always fits */}
           {goal > 0 && (
-            <div className="flex items-center gap-4 flex-shrink-0">
-              <div className="relative text-white">
-                <ProgressRing pct={curPct} size={88} />
+            <div className="mt-4 flex items-center gap-4">
+              <div className="relative flex-shrink-0 text-white">
+                <ProgressRing pct={curPct} size={72} />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="text-sm font-bold text-white tabular-nums">{(curPct * 100).toFixed(0)}%</span>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-sm font-medium text-blue-100">of {money(goal, cur)}</div>
-                <div className="text-sm text-blue-100 mt-0.5">goal</div>
+              <div>
+                <div className="text-sm font-medium text-blue-100">of {money(goal, cur)} goal</div>
                 {monthsToGoal !== null && monthsToGoal > 0 && (
-                  <div className="text-sm font-bold text-emerald-300 mt-1">
+                  <div className="text-sm font-bold text-emerald-300 mt-0.5">
                     {monthsToGoal < 12 ? `${monthsToGoal}mo` : `${Math.floor(monthsToGoal / 12)}y ${monthsToGoal % 12}mo`} to go
                   </div>
                 )}
-                {monthsToGoal === 0 && <div className="text-sm font-bold text-emerald-300 mt-1">Goal reached! 🎉</div>}
-                {goal > 0 && projPct > curPct && (
+                {monthsToGoal === 0 && <div className="text-sm font-bold text-emerald-300 mt-0.5">Goal reached! 🎉</div>}
+                {projPct > curPct && (
                   <div className="text-xs text-blue-300 mt-0.5">Proj: {(projPct * 100).toFixed(0)}%</div>
                 )}
               </div>
@@ -396,8 +347,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── KPI Grid ───────────────────────────────────────────────────────── */}
-      <div className="grid gap-3" style={{gridTemplateColumns: screenW < 640 ? 'repeat(2,minmax(0,1fr))' : 'repeat(3,minmax(0,1fr))'}}>
-
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
         <Kpi
           label="Monthly Income"
           value={money(totals.inc, cur)}
@@ -414,14 +364,14 @@ export default function DashboardPage() {
           invertDelta
           extra={<CategoryBar items={expByCategory} total={totals.exp} currency={cur} />}
         />
-        <div style={screenW < 640 ? {gridColumn:'1 / -1'} : {}}>
+        <div className="col-span-2 sm:col-span-1">
           <Kpi
             label="Net Cash Flow"
             value={money(totals.net, cur)}
             tone={netTone}
             delta={deltas?.net}
             currency={cur}
-            sub={totals.inc > 0 ? `${Math.max(0, (totals.net / totals.inc) * 100).toFixed(0)}% savings rate` : undefined}
+            sub={totals.inc > 0 ? `${((totals.net / totals.inc) * 100).toFixed(0)}% savings rate` : undefined}
           />
         </div>
       </div>
@@ -431,20 +381,20 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div className="px-2 pt-1">
             <div className="text-sm font-medium text-slate-900 dark:text-slate-100">Net Worth Projection</div>
-            <div className="text-xs text-slate-500 dark:text-slate-400">{chartWindowLabel}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-200">{chartWindowLabel}</div>
           </div>
           <div className="px-2 flex items-center gap-2">
             <div className="inline-flex rounded-xl border border-slate-200 p-1 dark:border-slate-800">
               {[6, 12, 24, 60].map(m => (
                 <button key={m} type="button" onClick={() => setWindowMonths(m)}
-                  className={`rounded-lg px-3 py-2 text-sm font-medium transition ${windowMonths === m ? 'bg-blue-600/10 text-slate-900 dark:bg-blue-500/20 dark:text-slate-100' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'}`}>
+                  className={`rounded-lg px-3 py-2 text-sm font-medium transition ${windowMonths === m ? 'bg-blue-600/10 text-slate-900 dark:bg-blue-500/20 dark:text-slate-100' : 'text-slate-500 hover:text-slate-900 dark:text-slate-200 dark:hover:text-slate-100'}`}>
                   {m===6?"6m":m===12?"1y":m===24?"2y":"5y"}
                 </button>
               ))}
             </div>
             <button
               onClick={() => setFullscreen(true)}
-              className="md:hidden p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              className="lg:hidden p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
               aria-label="Expand chart"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -464,43 +414,103 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Fullscreen landscape chart overlay — mobile only */}
-      {fullscreen && (
-        <div className="fixed inset-0 z-[60] bg-white dark:bg-slate-950 md:hidden overflow-hidden">
-          <div style={{
-            position: 'absolute', width: screenH, height: screenW,
-            top: `${(screenH - screenW) / 2}px`, left: `${(screenW - screenH) / 2}px`,
-            transform: 'rotate(90deg)', overflow: 'hidden',
-          }}>
-            <NetWorthChart currency={cur} series={windowed} startMonthISO={startISO} heightPx={screenW} goalNetWorth={goal} />
-          </div>
-          <div className="absolute top-0 bottom-0 right-0 z-10 flex flex-col items-center justify-between py-3"
-            style={{ width: 52, background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)' }}>
-            <div className="flex flex-col items-center gap-1">
-              {[6, 12, 24, 60].map(m => (
-                <button key={m} type="button" onClick={() => setWindowMonths(m)}
-                  className={`rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${windowMonths === m ? 'bg-blue-600/10 text-slate-900 dark:bg-blue-400/20 dark:text-slate-100' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'}`}>
-                  {m===6?"6m":m===12?"1y":m===24?"2y":"5y"}
-                </button>
-              ))}
+      {/* Fullscreen chart overlay — mobile only.
+          If browser is already landscape (auto-rotate on): render directly.
+          If portrait (auto-rotate off): show "rotate phone" prompt. */}
+      {fullscreen && (() => {
+        const isLandscape = screenW > screenH;
+        const lw = isLandscape ? screenW : screenH; // landscape width
+        const lh = isLandscape ? screenH : screenW; // landscape height
+        const ctrlH = 48;
+        const sliderH = maxOffset > 0 ? 28 : 0;
+        const topH = ctrlH + sliderH;
+        const chartAreaH = lh - topH;
+
+        const controls = (
+          <>
+            {/* Controls bar */}
+            <div style={{
+              position: 'absolute', top: 0, left: 0, right: 0, height: ctrlH,
+              background: 'rgba(15,23,42,0.97)', backdropFilter: 'blur(8px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '0 16px', zIndex: 2,
+            }}>
+              <button onClick={() => setFullscreen(false)}
+                style={{ padding: '5px 8px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(148,163,184,0.85)', cursor: 'pointer', lineHeight: 0, flexShrink: 0 }}
+                aria-label="Close fullscreen">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(148,163,184,0.6)', letterSpacing: 0.6, textTransform: 'uppercase' }}>Net Worth</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', lineHeight: 1.1 }}>{money(netWorthKpi, cur)}</div>
+                {goal > 0 && <div style={{ fontSize: 9, fontWeight: 700, marginTop: 2, color: monthsToGoal !== null ? '#34d399' : '#fbbf24' }}>{monthsToGoal !== null ? '✓ On Track' : 'Behind'}</div>}
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {[6, 12, 24, 60].map(m => (
+                  <button key={m} type="button" onClick={() => setWindowMonths(m)} style={{
+                    padding: '4px 9px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                    border: 'none', cursor: 'pointer',
+                    background: windowMonths === m ? 'rgba(59,130,246,0.3)' : 'transparent',
+                    color: windowMonths === m ? '#93c5fd' : 'rgba(148,163,184,0.55)',
+                  }}>
+                    {m===6?"6m":m===12?"1y":m===24?"2y":"5y"}
+                  </button>
+                ))}
+              </div>
             </div>
-            <button onClick={() => setFullscreen(false)}
-              className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-              aria-label="Close fullscreen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            {/* Scroll slider */}
+            {maxOffset > 0 && (
+              <div style={{
+                position: 'absolute', top: ctrlH, left: 0, right: 0, height: sliderH,
+                background: 'rgba(15,23,42,0.90)',
+                display: 'flex', alignItems: 'center', padding: '0 16px', zIndex: 2,
+              }}>
+                <input type="range" min={0} max={maxOffset} value={effOffset}
+                  onChange={e => setOffset(Number(e.target.value))}
+                  className="accent-blue-500"
+                  style={{ width: '100%', touchAction: 'none' }}
+                  aria-label="Scroll chart window" />
+              </div>
+            )}
+            {/* Chart */}
+            <div className="dark" style={{ position: 'absolute', top: topH, left: 0, right: 0, bottom: 0, background: '#0f172a' }}>
+              <NetWorthChart currency={cur} series={windowed} startMonthISO={startISO} heightPx={chartAreaH} goalNetWorth={goal} hideInfo />
+            </div>
+          </>
+        );
+
+        if (isLandscape) {
+          // Browser auto-rotated — render chart directly in landscape viewport
+          return (
+            <div className="fixed inset-0 z-[60] lg:hidden overflow-hidden" style={{ background: '#0f172a' }}>
+              {controls}
+            </div>
+          );
+        }
+
+        // Portrait viewport — ask user to rotate; show chart via CSS rotation
+        return (
+          <div className="fixed inset-0 z-[60] lg:hidden overflow-hidden" style={{ background: '#0f172a' }}>
+            {/* Rotate-phone hint — shown in portrait before tilting */}
+            <div style={{
+              position: 'absolute', inset: 0, zIndex: 10,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16,
+            }}>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(148,163,184,0.7)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="5" y="2" width="14" height="20" rx="2"/>
+                <path d="M12 18h.01"/>
               </svg>
-            </button>
+              <div style={{ color: 'rgba(148,163,184,0.8)', fontSize: 14, fontWeight: 600, textAlign: 'center' }}>Rotate your phone to landscape</div>
+              <button onClick={() => setFullscreen(false)}
+                style={{ marginTop: 8, padding: '8px 20px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(148,163,184,0.7)', cursor: 'pointer', fontSize: 13 }}>
+                Cancel
+              </button>
+            </div>
           </div>
-          <div className="absolute top-0 bottom-0 left-0 z-10 flex items-center justify-center overflow-hidden"
-            style={{ width: 40, background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)' }}>
-            <input type="range" min={0} max={maxOffset} value={effOffset}
-              onChange={e => setOffset(Number(e.target.value))}
-              className="accent-blue-500" aria-label="Scroll chart window"
-              style={{ width: screenH - 80, transform: 'rotate(-90deg)', touchAction: 'none', flexShrink: 0 }} />
-          </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

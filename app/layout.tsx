@@ -1,9 +1,35 @@
 import './globals.css';
+import type { Metadata, Viewport } from 'next';
 import { ClientShell } from './components/ClientShell';
 
-export const metadata = {
-  title: 'Finance Planner',
-  description: 'Personal financial planning tool',
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#1d4ed8',
+};
+
+export const metadata: Metadata = {
+  title: 'NetWorth Finance Planner',
+  description: 'Track net worth, plan cash flow, and project your financial future. 100% private — data never leaves your device.',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'NetWorth',
+    startupImage: [],
+  },
+  icons: {
+    icon: [
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
+  formatDetection: { telephone: false },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
