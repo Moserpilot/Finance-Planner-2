@@ -1,0 +1,53 @@
+name: Build Windows Installer EXE
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows-installer:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Verify desktop script exists
+        shell: powershell
+        run: |
+          $scripts = (Get-Content package.json -Raw | ConvertFrom-Json).scripts
+          if (-not $scripts.'desktop:release') {
+            throw "Missing script: desktop:release in package.json"
+          }
+          Write-Host "desktop:release -> $($scripts.'desktop:release')"
+
+      - name: Build web export
+        run: npm run build
+
+      - name: Build Windows installer
+        run: npm run desktop:release
+
+      - name: List release files (debug)
+        if: always()
+        shell: powershell
+        run: |
+          if (Test-Path release) {
+            Get-ChildItem -Path release -Recurse | Select-Object FullName,Length
+          } else {
+            Write-Host "release/ directory not found"
+          }
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FinancePlanner-Windows-Installer
+          path: release/**/*.exe
+          if-no-files-found: error
