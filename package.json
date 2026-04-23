@@ -12,7 +12,9 @@
     "cap:ios": "npx cap open ios",
     "cap:android": "npx cap open android",
     "icons": "node scripts/generate-icons.js",
-    "screenshots": "node scripts/take-screenshots.js"
+    "screenshots": "node scripts/take-screenshots.js",
+    "desktop:pack": "npm run build && npx electron-builder --win nsis --publish never",
+    "desktop:release": "npm run desktop:pack"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.0",
@@ -37,6 +39,8 @@
     "@capacitor/cli": "^8.3.0",
     "@types/qrcode": "^1.5.6",
     "cross-env": "^10.1.0",
+    "electron": "^41.3.0",
+    "electron-builder": "^26.8.1",
     "puppeteer": "^24.40.0",
     "puppeteer-core": "^24.40.0",
     "sharp": "^0.34.5"
