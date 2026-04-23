@@ -51,6 +51,10 @@
       "out/**",
       "package.json",
       "electron/**"
-    ]
+    ],
+    "win": {
+      "icon": "resources/icon.png"
+    },
+    "icon": "resources/icon.png"
   }
 }
